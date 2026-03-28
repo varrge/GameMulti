@@ -1,205 +1,198 @@
-# 论坛 SSO 与账户映射基础方案
+# 论坛 SSO 可配置接入方案
 
 ## 目标
 
-在现有“邀请制账户 + 游戏绑定 + 奖励结算”基础上，补齐 **主站账户与论坛账户之间的 SSO / 账户映射基础模块**，让后续能够继续推进：
+把现有“论坛 SSO / 账户映射基础模块”推进到 **可配置接入版本**，让仓库里已经具备下面几类交付：
 
-- 主站登录后无缝进入论坛
-- 首次登录论坛时自动建号或绑定已有论坛账户
-- 主站资料、封禁状态可异步同步到论坛
-- 同步过程具备可追踪、可重试、可审计能力
+- 可以直接抄走的环境变量样例
+- 稳定的主站服务边界与论坛适配器契约
+- 针对 Discourse 的接入骨架示例
+- 清晰的账户映射关系与状态流转说明
+- 一套本地可执行的验证脚本与验证步骤
 
-本稿优先提供：
-
-- 领域模型与状态设计
-- 数据表 / Prisma 草稿
-- 服务骨架与队列处理示例
-- 接入点说明与安全边界
-
-这样后续无论论坛最终接的是 Discourse、Flarum、NodeBB 还是自研论坛，都能先用统一的内部接口承接。
+当前版本仍然是 **集成骨架 + 接入说明**，不会直接替你操作真实论坛 API，但已经把后续真实接入时最容易返工的配置项、映射字段、边界约束和验证方法固定下来。
 
 ---
 
-## 一、推荐目录结构
+## 仓库内交付清单
 
 ```text
 backend/
-  schemas/
-    forum_sso.prisma
+  adapters/
+    forum_provider_adapter.js
+    discourse_forum_adapter.js
+  config/
+    forum_sso.example.env
   examples/
     forum_sso_service.js
+  schemas/
+    forum_sso.prisma
+  scripts/
+    forum_sso_verify.js
 docs/
   backend/
     forum_sso_foundation.md
 ```
 
-职责说明：
+职责划分：
 
-- `schemas/`：论坛账户映射、SSO ticket、同步任务等核心数据模型草稿
-- `examples/`：最小可运行的内存版服务骨架，验证首次同步、签发 ticket、异步任务状态流转
-- `docs/`：记录模块职责、外部论坛接入点和后续扩展方向
-
----
-
-## 二、核心业务链路
-
-### 1. 主站进入论坛
-
-1. 用户已登录主站
-2. 主站请求 `ForumSsoService.issueForumEntry()`
-3. 服务确保当前用户存在 `forum_accounts` 映射；若没有则尝试自动创建
-4. 服务生成一次性 `forum_sso_tickets`
-5. 前端跳转到论坛 `/sso/consume?ticket=xxx` 或对应桥接接口
-6. 论坛桥接层消费 ticket，完成论坛登录态建立
-
-### 2. 首次建号 / 账户映射
-
-1. 用户第一次访问论坛
-2. 系统查不到 `forum_accounts`
-3. 若业务允许自动建号：
-   - 创建论坛用户
-   - 写入主站用户与论坛用户的映射
-4. 若论坛已有人为创建的旧账户：
-   - 可按邮箱 / 外部 UID 做受控匹配
-   - 匹配成功后写入映射并标记来源
-
-### 3. 主站资料同步到论坛
-
-同步触发时机建议包括：
-
-- 用户首次建立论坛映射
-- 用户修改用户名、头像、展示名
-- 用户状态变化（停用 / 封禁 / 解封）
-- 后台人工触发全量补同步
-
-同步动作不要阻塞主链路，而是写入 `forum_sync_jobs`，再异步执行。
-
-### 4. 封禁 / 风控同步
-
-1. 主站用户被禁用、封禁或解除限制
-2. 写入 forum sync job
-3. 由论坛适配层调用外部论坛 API 执行：
-   - suspend / unsuspend
-   - group remove
-   - trust level 限制
-4. 回写任务执行结果和最近错误
+- `schemas/forum_sso.prisma`：沉淀论坛账户映射、SSO ticket、同步任务的数据模型
+- `examples/forum_sso_service.js`：提供主站侧 SSO 编排服务骨架
+- `adapters/forum_provider_adapter.js`：定义论坛适配器统一契约
+- `adapters/discourse_forum_adapter.js`：提供 Discourse 定向接入骨架
+- `config/forum_sso.example.env`：收敛可配置项，方便环境落地
+- `scripts/forum_sso_verify.js`：本地验证主流程是否打通
+- `docs/backend/forum_sso_foundation.md`：记录接入方式、映射关系和验证方法
 
 ---
 
-## 三、推荐数据模型
+## 一、推荐接入方式
 
-### 1. `forum_accounts`
+主站侧统一通过 `ForumSsoService` 编排论坛进入逻辑，外部论坛差异全部压到 `ForumProviderAdapter`。
 
-表示：主站用户在论坛侧的唯一映射关系。
+### 主链路
 
-建议核心字段：
+1. 主站用户已登录
+2. 用户点击“进入论坛”
+3. 主站调用 `issueForumEntry({ userId, forumProvider, redirectUrl })`
+4. 服务确保本地存在 `forum_accounts` 映射
+5. 若无映射，尝试匹配现有论坛账户；匹配不到则按配置决定是否自动建号
+6. 生成一次性 `forum_sso_tickets`
+7. 跳转到适配器构建出的论坛消费地址
+8. 论坛桥接层消费 ticket，建立论坛登录态
+9. 首次访问或资料变更时，把资料同步任务写入 `forum_sync_jobs`
 
-- `id`
-- `user_id`
-- `forum_provider`：论坛实现类型，如 `discourse` / `flarum`
-- `forum_user_id`：论坛侧用户唯一 ID
-- `forum_username`
-- `forum_email`
-- `external_uid`：传给论坛的外部身份（推荐使用主站 user id）
-- `sync_status`：当前同步状态
-- `last_synced_at`
-- `last_login_at`
-- `mapping_source`：`auto_create` / `matched_existing` / `manual_bind`
-- `created_at` / `updated_at`
+### 模块边界
 
-关键约束建议：
+- 主站用户模块：提供 userId / 用户资料 / 状态变更事件
+- `ForumSsoService`：负责映射查找、ticket 签发、同步任务编排
+- `ForumProviderAdapter`：负责对接具体论坛 API 或 SSO 桥接能力
+- Worker / Queue：异步处理 profile / ban / group sync
+
+这样做的好处是：
+
+- 论坛从 Discourse 切到 Flarum / NodeBB 时，主站逻辑不用推倒重来
+- 主链路只关注“能不能进入论坛”，同步重任务不阻塞登录
+- 配置项集中后，测试、预发、生产环境切换更稳
+
+---
+
+## 二、环境变量与配置项
+
+样例文件：`backend/config/forum_sso.example.env`
+
+### 必填项
+
+| 变量 | 说明 |
+| --- | --- |
+| `FORUM_SSO_PROVIDER` | 当前论坛提供方标识，默认示例是 `discourse` |
+| `FORUM_SSO_BASE_URL` | 论坛根地址，例如 `https://forum.example.com` |
+| `FORUM_SSO_CONSUME_PATH` | ticket 消费路径，例如 `/session/sso_login` |
+| `FORUM_SSO_SHARED_SECRET` | 主站与论坛桥接层共享密钥 |
+| `FORUM_SSO_BRIDGE_CALLBACK_URL` | 论坛回调主站的桥接地址 |
+
+### 常用行为开关
+
+| 变量 | 说明 | 推荐值 |
+| --- | --- | --- |
+| `FORUM_SSO_ALLOW_AUTO_CREATE` | 未匹配到论坛账户时是否允许自动建号 | `true` |
+| `FORUM_SSO_MATCH_BY` | 首次绑定优先按什么匹配现有论坛账户 | `email` |
+| `FORUM_SSO_SYNC_PROFILE` | 是否开启资料同步 | `true` |
+| `FORUM_SSO_SYNC_BAN_STATE` | 是否开启封禁/解封同步 | `true` |
+| `FORUM_SSO_SYNC_GROUPS` | 是否开启用户组同步 | `false` |
+
+### 安全与运行时参数
+
+| 变量 | 说明 | 推荐值 |
+| --- | --- | --- |
+| `FORUM_SSO_TICKET_TTL_SECONDS` | ticket 有效期 | `300` |
+| `FORUM_SSO_ALLOWED_REDIRECT_HOSTS` | 允许跳转的论坛域名白名单 | `forum.example.com,community.example.com` |
+| `FORUM_SSO_REQUEST_TIMEOUT_MS` | 对论坛 API 的请求超时 | `5000` |
+| `FORUM_SSO_RETRY_MAX_ATTEMPTS` | 异步同步最大重试次数 | `5` |
+| `FORUM_SSO_RETRY_BASE_DELAY_MS` | 同步重试基础退避时间 | `60000` |
+
+### 字段映射参数
+
+| 变量 | 说明 |
+| --- | --- |
+| `FORUM_SSO_EXTERNAL_UID_FIELD` | 论坛侧承接主站外部身份的字段名，推荐 `external_id` |
+| `FORUM_SSO_LOGIN_REDIRECT_URL` | 登录完成后的默认论坛落点 |
+
+> 实际落地时，不要把真实密钥直接提交到仓库。仓库里只保留 example env，真实值放部署平台 Secret / CI 变量里。
+
+---
+
+## 三、账户映射关系
+
+### 1. 主站与论坛的身份映射
+
+推荐使用主站 `user.id` 作为论坛外部身份 `external_uid`，避免用户名、邮箱变更后映射漂移。
+
+| 主站字段 | 论坛映射字段 | 用途 |
+| --- | --- | --- |
+| `user.id` | `external_uid` / `external_id` | 稳定唯一绑定键 |
+| `username` | `forum_username` | 展示用户名 |
+| `email` | `forum_email` | 首次匹配 / 通知 |
+| `status` | suspend / ban state | 风控状态同步 |
+
+### 2. forum_accounts
+
+`forum_accounts` 表示主站用户与论坛账户的唯一映射关系。
+
+关键约束：
 
 - `unique(user_id, forum_provider)`
 - `unique(forum_provider, forum_user_id)`
 - `unique(forum_provider, external_uid)`
 
-### 2. `forum_sso_tickets`
+映射来源建议保留：
 
-表示：主站签发给论坛桥接层消费的一次性票据。
+- `auto_create`
+- `matched_existing`
+- `manual_bind`
 
-建议核心字段：
+### 3. forum_sso_tickets
 
-- `id`
-- `user_id`
-- `forum_account_id`
-- `forum_provider`
-- `ticket`
-- `redirect_url`
-- `status`：`issued` / `consumed` / `expired` / `cancelled`
-- `expires_at`
-- `consumed_at`
-- `request_ip`
-- `request_user_agent`
-- `created_at`
+一次性票据用于把主站登录态安全转给论坛桥接层。
 
-设计目的：
+建议：
 
-- 让 SSO 消费动作可审计
-- 限制一次性使用，降低重放风险
-- 支持论坛桥接层与主站后端解耦
+- 只允许单次消费
+- 带过期时间
+- 记录 `request_ip` / `request_user_agent`
+- 记录 `redirect_url`
 
-### 3. `forum_sync_jobs`
+### 4. forum_sync_jobs
 
-表示：主站写给论坛同步执行器的异步任务。
+资料同步、封禁同步、用户组同步全部走异步任务，避免阻塞主链路。
 
-建议核心字段：
+建议任务类型：
 
-- `id`
-- `user_id`
-- `forum_account_id`
-- `forum_provider`
-- `job_type`：`create_account` / `sync_profile` / `sync_ban_state` / `sync_groups`
-- `trigger_source`：`user_login` / `profile_update` / `admin_action` / `system_backfill`
-- `payload`
-- `status`：`pending` / `processing` / `succeeded` / `failed` / `cancelled`
-- `dedupe_key`
-- `attempt_count`
-- `max_attempts`
-- `next_retry_at`
-- `last_error_code`
-- `last_error_message`
-- `finished_at`
-- `created_at` / `updated_at`
-
-关键约束建议：
-
-- `unique(dedupe_key)`：避免同一用户在同一时刻被重复塞入同类任务
-- 按 `status + next_retry_at` 建索引，便于轮询和批处理
+- `create_account`
+- `sync_profile`
+- `sync_ban_state`
+- `sync_groups`
 
 ---
 
-## 四、状态设计
+## 四、状态流转建议
 
-### 1. 论坛账户同步状态 `ForumAccountSyncStatus`
+### ForumAccountSyncStatus
 
-建议枚举：
-
-- `pending_initial_sync`
-- `active`
-- `syncing`
-- `sync_failed`
-- `disabled`
-
-说明：
-
-- `pending_initial_sync`：刚创建映射，首轮资料尚未同步完成
-- `active`：映射有效，最近一次同步成功
+- `pending_initial_sync`：刚建映射，初始同步未完成
+- `active`：最近一次同步成功，可正常签发登录
 - `syncing`：已有同步任务在执行中
-- `sync_failed`：最近一次同步失败，需要重试或人工介入
-- `disabled`：映射停用，不再用于签发论坛登录
+- `sync_failed`：最近同步失败，需要重试或人工处理
+- `disabled`：映射停用，不允许再签发论坛登录
 
-### 2. SSO ticket 状态 `ForumSsoTicketStatus`
-
-建议枚举：
+### ForumSsoTicketStatus
 
 - `issued`
 - `consumed`
 - `expired`
 - `cancelled`
 
-### 3. 同步任务状态 `ForumSyncJobStatus`
-
-建议枚举：
+### ForumSyncJobStatus
 
 - `pending`
 - `processing`
@@ -209,123 +202,138 @@ docs/
 
 ---
 
-## 五、接入点与模块边界
+## 五、适配器契约
 
-### 1. 主站用户模块
+统一契约文件：`backend/adapters/forum_provider_adapter.js`
 
-用户登录成功后，可调用：
+具体论坛实现至少要补齐以下方法：
 
-- `ensureForumAccountForUser(userId)`
-- `issueForumEntry(userId, redirectUrl)`
-
-推荐触发点：
-
-- 用户点击“进入论坛”按钮
-- 用户中心页显示“论坛账号状态”卡片
-- 后台手动补同步按钮
-
-### 2. 论坛适配层 `ForumProviderAdapter`
-
-建议统一抽象接口，屏蔽具体论坛实现差异：
-
-- `createUser(payload)`
 - `findUserByExternalUid(externalUid)`
 - `findUserByEmail(email)`
+- `createUser(payload)`
 - `syncProfile(payload)`
 - `syncBanState(payload)`
-- `buildConsumeUrl(ticket)`
+- `buildConsumeUrl(ticket, redirectUrl)`
 
-这样后续切换论坛实现时，只替换 adapter，不用重写主站领域逻辑。
+### 为什么必须有这层契约
 
-### 3. 异步任务执行器
+因为不同论坛在下面这些点上差异很大：
 
-`forum_sync_jobs` 推荐由独立 worker / cron 拉取。
+- 用户创建 API 形态不同
+- SSO 登录入口不同
+- 外部 UID 承接字段不同
+- 封禁 / 解封能力不同
+- 用户组同步能力不同
 
-执行原则：
+把这些差异收口到 adapter，可以保证：
 
-- 每次只 claim 有效的 `pending` 任务
-- 失败后指数退避
-- 对 4xx 型错误和“目标用户不存在”等业务错误要区分是否可重试
-- 每次执行都要回写 attempt、错误码、错误信息
-
----
-
-## 六、安全边界
-
-### 1. 不直接信任论坛回调
-
-如果论坛桥接层会回调主站确认 ticket：
-
-- 必须校验 ticket 是否存在
-- 必须校验状态仍为 `issued`
-- 必须校验是否过期
-- 消费后立即改为 `consumed`
-
-### 2. 外部身份推荐使用不可变主键
-
-不要把 `username` 当作论坛外部唯一身份；推荐使用主站 `user.id` 作为 `external_uid`。
-
-### 3. 自动匹配已有论坛账户要受控
-
-若启用“按邮箱匹配论坛旧账号”：
-
-- 只允许在邮箱已验证的前提下触发
-- 匹配成功要写明 `mapping_source = matched_existing`
-- 最好保留后台审核开关，避免误绑
-
-### 4. 同步任务要幂等
-
-同一用户的“资料同步”“封禁同步”在短时间内可能被多次触发，必须通过 `dedupe_key` 做折叠，避免打爆论坛 API。
+- 主站只关心统一领域动作
+- 接口测试可以围绕 service 做
+- 论坛切换时影响面最小
 
 ---
 
-## 七、最小落地建议
+## 六、Discourse 接入骨架说明
 
-如果本轮只做第一版基础模块，建议先覆盖：
+示例文件：`backend/adapters/discourse_forum_adapter.js`
 
-1. `forum_accounts` Prisma 草稿
-2. `forum_sso_tickets` Prisma 草稿
-3. `forum_sync_jobs` Prisma 草稿
-4. 内存版 `ForumSsoService`：
-   - ensure forum account
-   - issue ticket
-   - consume ticket
-   - enqueue sync job
-   - process sync jobs
-5. 文档中列清：
-   - 主站接入点
-   - 论坛适配层接口
-   - 后续要接真实论坛 API 的位置
+当前仓库里给的是 **安全骨架版**，特点：
 
-这样即使外部论坛接入暂未就绪，也已经把主站侧的边界和数据模型钉牢了。
+- 已定义 Discourse 适配器类
+- 已实现 `buildConsumeUrl()` 的可运行逻辑
+- `createUser()` / `syncProfile()` / `syncBanState()` 提供返回结构样例
+- `findUserByExternalUid()` / `findUserByEmail()` 留作真实 API 接入点
 
----
+你在真实环境里需要补的主要是：
 
-## 八、后续扩展方向
-
-后续可以继续补：
-
-- 主站 / 论坛用户组映射策略
-- 勋章、头衔、信任等级同步
-- 论坛侧登录成功事件回流主站埋点
-- 用户主动解绑论坛账户流程
-- 多论坛提供方支持（同一个主站接多个社区）
-- 全量 backfill / repair job
+1. 论坛 API 认证方式（API Key / admin token / internal bridge）
+2. 按 `external_id` 查用户的实际调用
+3. 创建用户接口参数映射
+4. 资料同步与封禁同步的真实请求
+5. 请求失败后的错误码归一化
 
 ---
 
-## 九、与当前仓库已有模块的衔接
+## 七、最小验证方法
 
-当前仓库里已有：
+验证脚本：`backend/scripts/forum_sso_verify.js`
 
-- 邀请制账户基础 (`invite_binding`)
-- 管理员邀请码能力 (`admin_player_invites`)
-- 奖励结算 / 钱包骨架
+### 本地验证命令
 
-论坛 SSO 模块与这些模块的关系：
+```bash
+cd /home/yinan/.openclaw/workspace/GameMulti
+set -a
+source backend/config/forum_sso.example.env
+set +a
+node backend/scripts/forum_sso_verify.js
+```
 
-- 依赖 `users` 作为主身份源
-- 可读取 `user_game_bindings` / 钱包 / 封禁状态，决定论坛展示和权限
-- 通过 `forum_sync_jobs` 与未来的封禁联动、勋章发放串起来
+### 脚本验证内容
 
-建议后续把“论坛同步”和“封禁联动”视为同一个外部系统集成域，避免散落在多个 service 里各自调用论坛 API。
+脚本会完成以下动作：
+
+1. 初始化内存版论坛适配器与主站服务
+2. 生成一名测试用户 `user_1`
+3. 调用 `issueForumEntry()` 签发 ticket
+4. 调用 `consumeTicket()` 验证 ticket 单次消费链路
+5. 调用 `processPendingSyncJobs()` 验证 profile sync 成功落账
+6. 打印最终 `forumAccounts`、`forumSyncJobs`、`consumeUrl`
+
+### 通过标准
+
+终端输出中应能看到：
+
+- `entry.consumeUrl` 按配置项拼接出的论坛地址
+- `consumed.forumUserId` 正常返回
+- `syncResults[0].status === "succeeded"`
+- `forumAccounts[0].syncStatus === "active"`
+
+---
+
+## 八、真实环境接入步骤
+
+1. **确认目标论坛实现**：至少明确是 Discourse / Flarum / NodeBB / 自研
+2. **准备环境变量**：基于 `backend/config/forum_sso.example.env` 注入真实值
+3. **实现具体 adapter**：优先补齐用户查询、用户创建、资料同步、封禁同步
+4. **接主站入口**：在“进入论坛”按钮或用户中心调用 `issueForumEntry()`
+5. **接论坛桥接消费端**：论坛侧落 ticket 消费与登录态建立逻辑
+6. **接异步执行器**：把 `forum_sync_jobs` 接到现有 worker / queue
+7. **联调回归**：验证首次建号、已存在账户匹配、资料更新、封禁同步、ticket 过期
+
+---
+
+## 九、当前依赖与边界
+
+当前仓库版本依赖：
+
+- Node.js 运行脚本示例
+- Prisma schema 作为数据建模草稿
+- 真实论坛 API 尚未接入
+- 真实消息队列 / 定时 worker 尚未接入
+
+所以它现在解决的是：
+
+- 配置口径统一
+- 字段映射不再飘
+- 主站/论坛边界稳定
+- 本地验证有抓手
+
+还没解决的是：
+
+- 真实论坛账号登录态的最终桥接实现
+- 生产环境密钥托管
+- 真正的 API 限流、审计和报警
+
+---
+
+## 十、建议的下一步
+
+如果后续继续推进，我建议按这个顺序落地：
+
+1. 先确认论坛实现与 SSO 方式
+2. 再把 `DiscourseForumAdapter` 替换成真实 HTTP 客户端实现
+3. 把 `forum_sync_jobs` 接到现有 worker
+4. 在 Admin 补一个“论坛账户状态 / 手工补同步”面板
+5. 最后做预发联调和失败补偿
+
+这样推进，风险最低，也最不容易返工。

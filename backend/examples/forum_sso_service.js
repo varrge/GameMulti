@@ -379,3 +379,4 @@ if (require.main === module) {
   console.log('Consume ticket:', service.consumeTicket(entry.ticket));
   console.log('Process jobs:', service.processPendingSyncJobs());
 }
+
