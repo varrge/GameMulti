@@ -32,7 +32,10 @@ body {
   flex-direction: column;
   gap: 24px;
 }
-.content { padding: 28px; }
+.content {
+  padding: 28px;
+  display: grid;
+}
 .eyebrow {
   margin: 0 0 8px;
   text-transform: uppercase;
@@ -40,8 +43,12 @@ body {
   font-size: 12px;
   color: var(--accent);
 }
-h1, h2, h3 { margin: 0; }
+h1, h2, h3, h4 { margin: 0; }
 .muted { color: var(--muted); }
+.small-text {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
 .nav { display: grid; gap: 10px; }
 .nav-link,
 button {
@@ -72,6 +79,12 @@ button:hover { background: #2563eb; }
   align-items: center;
   gap: 16px;
 }
+.compact-header {
+  margin-bottom: 0;
+}
+.align-start {
+  align-items: flex-start;
+}
 .badge {
   background: rgba(56, 189, 248, 0.14);
   color: var(--accent);
@@ -85,7 +98,8 @@ button:hover { background: #2563eb; }
 }
 .toolbar,
 .split-grid,
-.ban-form {
+.ban-form,
+.forum-retry-form {
   display: grid;
   gap: 14px;
 }
@@ -93,7 +107,16 @@ button:hover { background: #2563eb; }
   grid-template-columns: 2fr 1fr 1fr auto;
   align-items: center;
 }
+.toolbar-forum {
+  grid-template-columns: 2.2fr 1fr 1fr auto;
+}
 .split-grid { grid-template-columns: minmax(320px, 420px) 1fr; }
+.forum-grid {
+  grid-template-columns: minmax(360px, 1fr) minmax(320px, 420px);
+}
+.secondary-grid {
+  grid-template-columns: 1fr 1fr;
+}
 label { display: grid; gap: 8px; }
 input, select, textarea {
   width: 100%;
@@ -120,19 +143,27 @@ tr:last-child td { border-bottom: 0; }
   background: rgba(56, 189, 248, 0.14);
   color: var(--accent);
 }
+.retry-button {
+  white-space: nowrap;
+}
 .kv {
   display: grid;
   grid-template-columns: 120px 1fr;
   gap: 8px 12px;
   margin-top: 12px;
 }
-.invite-list {
+.compact-kv {
+  grid-template-columns: 112px 1fr;
+}
+.invite-list,
+.stack-list {
   display: grid;
   gap: 12px;
   max-height: 520px;
   overflow: auto;
 }
-.invite-item {
+.invite-item,
+.stack-item {
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 14px;
@@ -145,6 +176,95 @@ tr:last-child td { border-bottom: 0; }
   background: #0b1120;
   border: 1px dashed var(--border);
 }
+.notice-box {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.26);
+  background: rgba(56, 189, 248, 0.08);
+}
+.notice-danger {
+  border-color: rgba(251, 113, 133, 0.32);
+  background: rgba(251, 113, 133, 0.1);
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.stack-gap {
+  display: grid;
+  gap: 16px;
+}
+.inner-card {
+  padding: 0;
+  overflow: hidden;
+}
+.inner-card .list-header,
+.inner-card .table-scroll,
+.inner-card .empty-state {
+  padding-left: 18px;
+  padding-right: 18px;
+}
+.inner-card .list-header {
+  padding-top: 18px;
+}
+.inner-card .empty-state {
+  padding-bottom: 18px;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(148, 163, 184, 0.12);
+}
+.status-active,
+.status-succeeded,
+.status-consumed {
+  color: var(--success);
+  border-color: rgba(52, 211, 153, 0.3);
+  background: rgba(52, 211, 153, 0.12);
+}
+.status-syncing,
+.status-processing,
+.status-issued,
+.status-pending,
+.status-pending_initial_sync {
+  color: var(--accent);
+  border-color: rgba(56, 189, 248, 0.28);
+  background: rgba(56, 189, 248, 0.12);
+}
+.status-sync_failed,
+.status-failed,
+.status-cancelled,
+.status-disabled,
+.status-expired,
+.status-banned {
+  color: var(--danger);
+  border-color: rgba(251, 113, 133, 0.32);
+  background: rgba(251, 113, 133, 0.12);
+}
+.status-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.mini-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.empty-state {
+  margin: 0;
+  color: var(--muted);
+}
+.hidden {
+  display: none !important;
+}
 .success { color: var(--success); }
 .danger { color: var(--danger); }
 .list-header {
@@ -154,9 +274,27 @@ tr:last-child td { border-bottom: 0; }
   gap: 12px;
   margin-bottom: 14px;
 }
+@media (max-width: 1200px) {
+  .forum-grid,
+  .secondary-grid {
+    grid-template-columns: 1fr;
+  }
+}
 @media (max-width: 980px) {
   .layout,
   .split-grid,
-  .toolbar { grid-template-columns: 1fr; }
+  .toolbar,
+  .toolbar-forum,
+  .mini-columns {
+    grid-template-columns: 1fr;
+  }
   .sidebar { border-right: 0; border-bottom: 1px solid var(--border); }
+  .content { padding: 18px; }
+  .kv,
+  .compact-kv {
+    grid-template-columns: 1fr;
+  }
+  .status-group {
+    justify-content: flex-start;
+  }
 }

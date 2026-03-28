@@ -12,10 +12,11 @@
         <div>
           <p class="eyebrow">GameMulti</p>
           <h1>Admin 基础界面</h1>
-          <p class="muted">最小可运行演示：玩家查询、邀请码管理、封禁入口。</p>
+          <p class="muted">最小可运行演示：玩家查询、论坛联动、邀请码管理、封禁入口。</p>
         </div>
         <nav class="nav">
           <button class="nav-link active" data-view="players">玩家查询</button>
+          <button class="nav-link" data-view="forum">论坛联动</button>
           <button class="nav-link" data-view="invites">邀请码管理</button>
           <button class="nav-link" data-view="ban">封禁入口</button>
         </nav>
@@ -24,6 +25,11 @@
           <ul>
             <li><code>GET /api/admin/players</code></li>
             <li><code>GET /api/admin/players/{userId}</code></li>
+            <li><code>GET /api/admin/forum/accounts</code></li>
+            <li><code>GET /api/admin/forum/accounts/{forumAccountId}</code></li>
+            <li><code>GET /api/admin/forum/tickets</code></li>
+            <li><code>GET /api/admin/forum/sync-jobs</code></li>
+            <li><code>POST /api/admin/forum/sync-jobs/{jobId}/retry-profile</code></li>
             <li><code>GET /api/admin/invitation-codes</code></li>
             <li><code>POST /api/admin/invitation-codes/generate</code></li>
           </ul>
@@ -76,6 +82,132 @@
             <h3>玩家详情</h3>
             <p class="muted">点击“查看详情”加载聚合信息。</p>
             <div id="player-detail-content"></div>
+          </div>
+        </section>
+
+        <section class="panel view" id="view-forum">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Admin / Forum Integration</p>
+              <h2>论坛联动最小闭环</h2>
+            </div>
+            <span class="badge">账户映射 + Ticket + Sync Job</span>
+          </div>
+
+          <div class="card stack-gap">
+            <form class="toolbar toolbar-forum" id="forum-filter-form">
+              <input name="keyword" placeholder="搜主站用户名 / 邮箱 / 论坛用户名 / externalUid" />
+              <select name="syncStatus">
+                <option value="">全部同步状态</option>
+                <option value="pending_initial_sync">pending_initial_sync</option>
+                <option value="active">active</option>
+                <option value="syncing">syncing</option>
+                <option value="sync_failed">sync_failed</option>
+                <option value="disabled">disabled</option>
+              </select>
+              <select name="userStatus">
+                <option value="">全部主站状态</option>
+                <option value="active">active</option>
+                <option value="disabled">disabled</option>
+                <option value="banned">banned</option>
+              </select>
+              <button type="submit">筛选</button>
+            </form>
+
+            <div class="table-card inner-card">
+              <div class="list-header compact-header">
+                <h3>论坛账户映射</h3>
+                <span class="muted" id="forum-account-count"></span>
+              </div>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>主站用户</th>
+                      <th>论坛账户</th>
+                      <th>sync status</th>
+                      <th>最近失败原因</th>
+                      <th>最近同步</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="forum-account-table-body"></tbody>
+                </table>
+              </div>
+              <p id="forum-account-empty" class="empty-state hidden">没有匹配的论坛账户映射。</p>
+            </div>
+          </div>
+
+          <div class="split-grid forum-grid">
+            <div class="detail-card stack-gap">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Forum Account Detail</p>
+                  <h3>映射详情</h3>
+                </div>
+                <span class="badge" id="forum-detail-status">等待选择</span>
+              </div>
+              <div id="forum-account-detail-content">
+                <p class="muted">点击列表中的“查看详情”查看最近 ticket、sync job 和失败原因。</p>
+              </div>
+            </div>
+
+            <div class="card stack-gap">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Manual Action</p>
+                  <h3>重试资料同步</h3>
+                </div>
+                <span class="badge warning">仅演示 sync_profile</span>
+              </div>
+              <form id="forum-retry-form" class="forum-retry-form">
+                <label>
+                  <span>任务 ID</span>
+                  <input type="text" name="jobId" placeholder="从详情或任务列表中带入 job_xxx" required />
+                </label>
+                <label>
+                  <span>操作人 ID</span>
+                  <input type="text" name="operatorId" value="admin_demo_operator" />
+                </label>
+                <label>
+                  <span>重试原因</span>
+                  <textarea name="reason" rows="4" placeholder="例如：论坛头像同步失败后人工补触发"></textarea>
+                </label>
+                <button type="submit">模拟重试 profile sync</button>
+              </form>
+              <div id="forum-retry-result" class="result-box muted">还没触发重试。</div>
+            </div>
+          </div>
+
+          <div class="split-grid forum-grid secondary-grid">
+            <div class="card stack-gap">
+              <div class="list-header compact-header">
+                <h3>最近 Ticket</h3>
+                <select id="forum-ticket-status-filter">
+                  <option value="">全部状态</option>
+                  <option value="issued">issued</option>
+                  <option value="consumed">consumed</option>
+                  <option value="expired">expired</option>
+                  <option value="cancelled">cancelled</option>
+                </select>
+              </div>
+              <div id="forum-ticket-list" class="stack-list"></div>
+            </div>
+
+            <div class="card stack-gap">
+              <div class="list-header compact-header">
+                <h3>最近 Sync Jobs</h3>
+                <select id="forum-job-status-filter">
+                  <option value="">全部状态</option>
+                  <option value="pending">pending</option>
+                  <option value="processing">processing</option>
+                  <option value="succeeded">succeeded</option>
+                  <option value="failed">failed</option>
+                  <option value="cancelled">cancelled</option>
+                </select>
+              </div>
+              <div id="forum-job-list" class="stack-list"></div>
+            </div>
           </div>
         </section>
 
