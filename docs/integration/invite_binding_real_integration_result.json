@@ -1,0 +1,215 @@
+{
+  "verifiedAt": "2026-03-28T01:37:00.000Z",
+  "path": [
+    {
+      "step": "validate_invitation",
+      "api": "POST /api/invitations/validate",
+      "request": {
+        "code": "ABCD1234"
+      },
+      "response": {
+        "valid": true,
+        "codeStatus": "active",
+        "remainingUses": 5,
+        "expiresAt": null
+      }
+    },
+    {
+      "step": "invite_register",
+      "api": "POST /api/auth/invite-register",
+      "request": {
+        "username": "player_one",
+        "email": "player_one@example.com",
+        "password": "12345678",
+        "inviteCode": "ABCD1234"
+      },
+      "response": {
+        "user": {
+          "id": "user_17423ac3",
+          "username": "player_one",
+          "email": "player_one@example.com",
+          "status": "active"
+        }
+      }
+    },
+    {
+      "step": "create_binding_session",
+      "api": "POST /api/plugin/bindings/session",
+      "request": {
+        "serverCode": "cn-mc-01",
+        "gameCode": "minecraft",
+        "platform": "java",
+        "gameUserId": "UUID-123",
+        "displayName": "Steve",
+        "bindMode": "bind_existing"
+      },
+      "response": {
+        "sessionId": "binding_session_46634526",
+        "token": "b09612c9f4fd34b9dc75af7f194b5eba0bf3886d59cdf76b",
+        "pairCode": "151650",
+        "expiresIn": 300,
+        "bindUrl": "https://example.com/bind/confirm?token=b09612c9f4fd34b9dc75af7f194b5eba0bf3886d59cdf76b"
+      }
+    },
+    {
+      "step": "query_binding_session_by_token",
+      "api": "GET /api/bindings/session/by-token",
+      "request": {
+        "token": "b09612c9f4fd34b9dc75af7f194b5eba0bf3886d59cdf76b"
+      },
+      "response": {
+        "sessionId": "binding_session_46634526",
+        "gameCode": "minecraft",
+        "serverCode": "cn-mc-01",
+        "platform": "java",
+        "gameUserId": "UUID-123",
+        "displayName": "Steve",
+        "status": "pending",
+        "expiresAt": "2026-03-28T01:42:00.000Z",
+        "canConfirm": true
+      }
+    },
+    {
+      "step": "query_binding_session_by_pair_code",
+      "api": "POST /api/bindings/session/by-pair-code",
+      "request": {
+        "pairCode": "151650"
+      },
+      "response": {
+        "sessionId": "binding_session_46634526",
+        "gameCode": "minecraft",
+        "serverCode": "cn-mc-01",
+        "platform": "java",
+        "gameUserId": "UUID-123",
+        "displayName": "Steve",
+        "status": "pending",
+        "expiresAt": "2026-03-28T01:42:00.000Z",
+        "canConfirm": true
+      }
+    },
+    {
+      "step": "confirm_binding",
+      "api": "POST /api/bindings/confirm",
+      "request": {
+        "sessionId": "binding_session_46634526"
+      },
+      "response": {
+        "bindingId": "user_game_binding_1fdf5f34",
+        "gameAccountId": "game_account_79d201d6",
+        "status": "active"
+      }
+    }
+  ],
+  "state": {
+    "users": [
+      {
+        "id": "user_17423ac3",
+        "username": "player_one",
+        "email": "player_one@example.com",
+        "passwordHash": "ef797c8118f02dfb649607dd5d3f8c7623048c9c063d532cc95c5ed7a898a64f",
+        "status": "active",
+        "source": "invite_register",
+        "invitedByUserId": null,
+        "invitationCodeId": "invite_1",
+        "registerIp": "127.0.0.1",
+        "registerUserAgent": "invite-binding-verify/1.0",
+        "lastLoginAt": null,
+        "createdAt": "2026-03-28T01:37:00.000Z",
+        "updatedAt": "2026-03-28T01:37:00.000Z"
+      }
+    ],
+    "invitationCodes": [
+      {
+        "id": "invite_1",
+        "code": "ABCD1234",
+        "createdBy": "admin_1",
+        "ownerUserId": null,
+        "maxUses": 5,
+        "usedCount": 1,
+        "startsAt": null,
+        "expiresAt": null,
+        "status": "active",
+        "createdAt": "2026-03-28T01:37:00.000Z"
+      }
+    ],
+    "invitationCodeUsages": [
+      {
+        "id": "invite_usage_0cf603f8",
+        "invitationCodeId": "invite_1",
+        "userId": "user_17423ac3",
+        "inviterUserId": null,
+        "usedIp": "127.0.0.1",
+        "usedUserAgent": "invite-binding-verify/1.0",
+        "usedAt": "2026-03-28T01:37:00.000Z"
+      }
+    ],
+    "bindingSessions": [
+      {
+        "id": "binding_session_46634526",
+        "gameId": "game_minecraft",
+        "serverId": "server_1",
+        "pluginClientId": "plugin_1",
+        "gameUserId": "UUID-123",
+        "platform": "java",
+        "displayName": "Steve",
+        "bindMode": "bind_existing",
+        "token": "b09612c9f4fd34b9dc75af7f194b5eba0bf3886d59cdf76b",
+        "pairCode": "151650",
+        "status": "confirmed",
+        "gameAccountSnapshot": {
+          "gameCode": "minecraft",
+          "serverCode": "cn-mc-01",
+          "platform": "java",
+          "gameUserId": "UUID-123",
+          "displayName": "Steve"
+        },
+        "expiresAt": "2026-03-28T01:42:00.000Z",
+        "usedAt": "2026-03-28T01:37:00.000Z",
+        "usedByUserId": "user_17423ac3",
+        "confirmedBindingId": "user_game_binding_1fdf5f34",
+        "confirmedGameAccountId": "game_account_79d201d6",
+        "createdIp": null,
+        "createdAt": "2026-03-28T01:37:00.000Z",
+        "updatedAt": "2026-03-28T01:37:00.000Z"
+      }
+    ],
+    "gameAccounts": [
+      {
+        "id": "game_account_79d201d6",
+        "gameId": "game_minecraft",
+        "platform": "java",
+        "gameUserId": "UUID-123",
+        "normalizedGameUserId": "uuid-123",
+        "displayName": "Steve",
+        "extraMeta": null,
+        "createdAt": "2026-03-28T01:37:00.000Z",
+        "updatedAt": "2026-03-28T01:37:00.000Z"
+      }
+    ],
+    "userGameBindings": [
+      {
+        "id": "user_game_binding_1fdf5f34",
+        "userId": "user_17423ac3",
+        "gameAccountId": "game_account_79d201d6",
+        "serverId": "server_1",
+        "bindStatus": "active",
+        "bindSource": "binding_session_confirm",
+        "verifiedBy": "system",
+        "verifiedAt": "2026-03-28T01:37:00.000Z",
+        "unbindRequestedAt": null,
+        "unbindApprovedAt": null,
+        "unbindCooldownUntil": null,
+        "createdAt": "2026-03-28T01:37:00.000Z",
+        "updatedAt": "2026-03-28T01:37:00.000Z"
+      }
+    ]
+  },
+  "summary": {
+    "totalUsers": 1,
+    "totalInvitationCodeUsages": 1,
+    "totalBindingSessions": 1,
+    "totalGameAccounts": 1,
+    "totalUserGameBindings": 1,
+    "finalBindingSessionStatus": "confirmed"
+  }
+}

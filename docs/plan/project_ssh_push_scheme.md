@@ -1,59 +1,79 @@
-# GameMulti 项目统一 SSH 推送方案
+# GameMulti 项目 SSH 推送统一方案
 
-## 1. 目标
+## 1. 目的
 
-为 GameMulti 项目提供统一的 GitHub SSH 推送方案，避免为每个执行成员单独配置 GitHub 认证。
+为避免多人协作时出现 HTTPS / SSH 混用、凭证口径不一致、分支直接推到主干等问题，GameMulti 项目统一采用 **SSH 推送** 与 **`develop` + `feature/*` 分支流程**。
 
-采用方式：
+从本说明生效后，执行型任务在交付时默认按以下规则执行，并在交付摘要中补全分支、commit、改动路径、验证方式。
 
-- 一个项目级 SSH key
-- 统一用于 GameMulti 仓库推送
-- 所有执行成员共用该推送身份
-- 通过 git commit 作者名和任务系统记录区分具体执行者
+## 2. 统一规则
 
----
+### 2.1 远端协议
 
-## 2. 当前项目专用 SSH key
+- `origin` 统一使用 SSH 地址
+- 推荐格式：`git@github.com:varrge/GameMulti.git`
+- 如果团队采用项目级 SSH key + Host alias，也可使用：`git@github-gamemulti:varrge/GameMulti.git`
+- 不再使用 `https://github.com/varrge/GameMulti.git` 作为 push 远端
 
-### 私钥路径
+切换命令：
+
+```bash
+git remote set-url origin git@github.com:varrge/GameMulti.git
+```
+
+如果本机已配置 Host alias，可改为：
+
+```bash
+git remote set-url origin git@github-gamemulti:varrge/GameMulti.git
+```
+
+检查命令：
+
+```bash
+git remote -v
+```
+
+预期输出应包含 SSH 形式的 fetch / push 地址，例如：
+
+```text
+origin  git@github.com:varrge/GameMulti.git (fetch)
+origin  git@github.com:varrge/GameMulti.git (push)
+```
+
+或：
+
+```text
+origin  git@github-gamemulti:varrge/GameMulti.git (fetch)
+origin  git@github-gamemulti:varrge/GameMulti.git (push)
+```
+
+### 2.2 项目级 SSH key（可选统一口径）
+
+如果团队选择共用项目级 SSH key，当前建议如下：
+
+#### 私钥路径
 - `~/.ssh/gamemulti_ed25519`
 
-### 公钥路径
+#### 公钥路径
 - `~/.ssh/gamemulti_ed25519.pub`
 
-### 公钥内容
+#### 公钥内容
 
 ```text
 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBjQEXf2S2LC0PO3FcMk7o/dqi0Zqbx+fCfVhu6t8OHQ gamemulti-bot
 ```
 
-### 指纹
+#### 指纹
 - `SHA256:6MzMQaX2YPHeMN9sUq8l1CK1WAkYQnK+mu7/te+DEY8`
 
----
+GitHub 侧需要将上述公钥添加到用于管理 GameMulti 项目的 GitHub 账号中，推荐绑定到：
 
-## 3. GitHub 侧需要做的事
-
-将上述公钥添加到用于管理 GameMulti 项目的 GitHub 账号中：
-
-1. 打开 GitHub
-2. 进入 Settings
-3. 进入 SSH and GPG keys
-4. 选择 New SSH key
-5. 粘贴公钥内容
-6. 保存
-
-推荐绑定到：
 - 项目 bot 账号
 - 或项目维护账号
 
 不建议长期绑定到个人主账号。
 
----
-
-## 4. SSH config 建议
-
-建议在 `~/.ssh/config` 增加：
+SSH config 可增加：
 
 ```sshconfig
 Host github-gamemulti
@@ -63,34 +83,109 @@ Host github-gamemulti
   IdentitiesOnly yes
 ```
 
----
+### 2.3 分支流程
 
-## 5. 仓库 remote 建议
+统一遵守轻量 Git Flow：
 
-将 GameMulti 仓库 remote 改成：
+- `main`：稳定 / 发布分支，禁止直接推送
+- `develop`：日常集成分支
+- `feature/*`：功能开发分支
+- `fix/*`：普通修复分支
+- `hotfix/*`：线上紧急修复分支
+
+执行型任务默认流程：
+
+1. 先同步 `develop`
+2. 从 `develop` 拉出 `feature/*` 或 `fix/*`
+3. 在任务分支完成改动与自测
+4. 推送任务分支
+5. 在交付摘要中写清分支、commit、改动路径、验证方式
+6. 后续优先合回 `develop`
+
+示例：
 
 ```bash
-git remote set-url origin git@github-gamemulti:varrge/GameMulti.git
+git checkout develop
+git pull --ff-only origin develop
+git checkout -b feature/minecraft-plugin-poc
 ```
 
-如果暂时不使用 Host alias，也可用：
+### 2.4 命名建议
+
+建议按单一目标命名：
+
+- `feature/invite-register`
+- `feature/forum-sso-configurable`
+- `feature/minecraft-plugin-poc-runtime-verification`
+- `fix/wallet-settlement-idempotency`
+
+要求：
+
+- 一条分支只处理一个相对明确的交付目标
+- 不要在同一分支里混做多个不相关模块
+- 文档补充可跟随同主题实现一起提交；无关文档整理单独分支
+
+## 3. 交付摘要最低要求
+
+后续 GameMulti 实现型任务提交时，交付摘要至少写清以下四项：
+
+1. **分支名**
+2. **commit SHA**
+3. **改动路径**（仓库内相对路径）
+4. **验证方式**（执行过什么验证、如何复现）
+
+推荐模板：
+
+```text
+分支：feature/xxx
+commit：abcdef1234567890
+改动路径：
+- docs/plan/xxx.md
+- apps/api/src/modules/xxx.ts
+验证方式：
+- npm test -- xxx
+- 本地按 README 步骤启动后手工验证 xxx
+```
+
+如果当前交付仅为文档，也要补充：
+
+- 文档所在路径
+- 文档内覆盖了哪些结论
+- 如何据此继续执行或复核
+
+## 4. 现阶段落实要求
+
+所有执行成员在 GameMulti 项目中开始新任务前，先自查：
 
 ```bash
-git remote set-url origin git@github.com:varrge/GameMulti.git
+git remote -v
+git branch --show-current
 ```
 
----
+开始改动前确认：
 
-## 6. 团队统一规则
+- 远端是否已切到 SSH
+- 是否从 `develop` 拉出任务分支
+- 当前分支是否符合 `feature/*` / `fix/*` / `hotfix/*` 命名规则
 
-从现在开始：
+提交前确认：
 
-1. GameMulti 项目统一使用该 SSH key 推送
-2. 所有实现型任务走 `develop + feature/*` 流程
-3. 提交时必须设置自己的 git 作者名与邮箱
-4. 交付摘要必须写明：
-   - 分支名
-   - commit
-   - 改动路径
-   - 验证方式
+- 是否保留了可审计 commit
+- 是否在交付摘要写了分支、commit、路径、验证方式
+- 是否优先按 `develop` 汇总，而不是直接往 `main` 推送
 
+## 5. 与现有基线文档的关系
+
+本说明是对协作基线的落地补充，需与以下文档一起执行：
+
+- `docs/plan/repository_collaboration_and_deployment_baseline.md`
+
+其中基线文档定义了整体协作与发布规范；本文档进一步明确了 **GameMulti 当前阶段统一走 SSH 推送与 develop/feature 分支交付** 的具体执行口径。
+
+## 6. 当前核对结论
+
+本次核对发现当前仓库远端仍存在 HTTPS push 口径，说明规则还需要继续落实到执行链路中。后续新增实现型交付应优先按本文档修正后再推进，避免继续出现：
+
+- 用 HTTPS 推送导致身份与凭证不统一
+- 直接在非规范分支上开发
+- 交付摘要缺少分支 / commit / 路径 / 验证方式

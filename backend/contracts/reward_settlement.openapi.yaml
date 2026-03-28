@@ -1,0 +1,342 @@
+openapi: 3.1.0
+info:
+  title: GameMulti Reward Rule & Settlement API Draft
+  version: 0.1.0
+  description: |
+    奖励规则、结算记录与最小结算链路接口草稿。
+    先覆盖后台规则管理、事件试算、结算明细查询，便于后续接钱包账本与任务/活动系统。
+servers:
+  - url: https://api.example.com
+paths:
+  /api/admin/reward-rules:
+    get:
+      summary: 分页查询奖励规则
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: gameCode
+          schema:
+            type: string
+        - in: query
+          name: eventType
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [draft, active, disabled]
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 规则列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, pageSize, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RewardRuleSummary'
+                  page:
+                    type: integer
+                  pageSize:
+                    type: integer
+                  total:
+                    type: integer
+    post:
+      summary: 创建奖励规则
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RewardRuleUpsertRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RewardRuleSummary'
+  /api/admin/reward-rules/{ruleId}:
+    get:
+      summary: 查询奖励规则详情
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: ruleId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 规则详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RewardRuleDetail'
+        '404':
+          description: 未找到规则
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/admin/reward-rules/evaluate:
+    post:
+      summary: 对事件进行奖励试算
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [gameCode, eventType, eventPayload]
+              properties:
+                gameCode:
+                  type: string
+                eventType:
+                  type: string
+                eventPayload:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: 试算结果
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [matchedRules, outputs]
+                properties:
+                  matchedRules:
+                    type: array
+                    items:
+                      type: string
+                  outputs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SettlementPreview'
+  /api/admin/reward-settlements:
+    get:
+      summary: 分页查询奖励结算记录
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: string
+        - in: query
+          name: gameCode
+          schema:
+            type: string
+        - in: query
+          name: eventType
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, credited, skipped, failed]
+        - in: query
+          name: idempotencyKey
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 结算列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, pageSize, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RewardSettlementSummary'
+                  page:
+                    type: integer
+                  pageSize:
+                    type: integer
+                  total:
+                    type: integer
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    RewardRuleSummary:
+      type: object
+      required: [id, name, gameCode, eventType, rewardType, rewardValue, status, priority, createdAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        gameCode:
+          type: string
+        eventType:
+          type: string
+        rewardType:
+          type: string
+          enum: [coin]
+        rewardValue:
+          type: integer
+        priority:
+          type: integer
+        status:
+          type: string
+          enum: [draft, active, disabled]
+        triggerWindowSeconds:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    RewardRuleDetail:
+      allOf:
+        - $ref: '#/components/schemas/RewardRuleSummary'
+        - type: object
+          required: [matcher, payoutConfig]
+          properties:
+            matcher:
+              type: object
+              additionalProperties: true
+            payoutConfig:
+              type: object
+              additionalProperties: true
+            remark:
+              type: string
+              nullable: true
+            updatedAt:
+              type: string
+              format: date-time
+    RewardRuleUpsertRequest:
+      type: object
+      required: [name, gameCode, eventType, rewardType, rewardValue, matcher]
+      properties:
+        name:
+          type: string
+        gameCode:
+          type: string
+        eventType:
+          type: string
+        rewardType:
+          type: string
+          enum: [coin]
+        rewardValue:
+          type: integer
+          minimum: 1
+        priority:
+          type: integer
+          default: 100
+        triggerWindowSeconds:
+          type: integer
+          nullable: true
+        matcher:
+          type: object
+          additionalProperties: true
+        payoutConfig:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [draft, active, disabled]
+          default: draft
+        remark:
+          type: string
+          nullable: true
+    SettlementPreview:
+      type: object
+      required: [ruleId, amount, currency, reason]
+      properties:
+        ruleId:
+          type: string
+        amount:
+          type: integer
+        currency:
+          type: string
+          enum: [coin]
+        reason:
+          type: string
+    RewardSettlementSummary:
+      type: object
+      required: [id, ruleId, userId, gameCode, eventType, amount, status, idempotencyKey, createdAt]
+      properties:
+        id:
+          type: string
+        ruleId:
+          type: string
+        userId:
+          type: string
+        gameCode:
+          type: string
+        eventType:
+          type: string
+        amount:
+          type: integer
+        currency:
+          type: string
+          enum: [coin]
+        status:
+          type: string
+          enum: [pending, credited, skipped, failed]
+        idempotencyKey:
+          type: string
+        sourceEventId:
+          type: string
+          nullable: true
+        walletLedgerId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true

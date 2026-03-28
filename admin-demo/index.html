@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GameMulti Admin Demo</title>
+    <link rel="stylesheet" href="./assets/styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div>
+          <p class="eyebrow">GameMulti</p>
+          <h1>Admin 基础界面</h1>
+          <p class="muted">最小可运行演示：玩家查询、邀请码管理、封禁入口。</p>
+        </div>
+        <nav class="nav">
+          <button class="nav-link active" data-view="players">玩家查询</button>
+          <button class="nav-link" data-view="invites">邀请码管理</button>
+          <button class="nav-link" data-view="ban">封禁入口</button>
+        </nav>
+        <div class="api-box">
+          <h2>对接契约</h2>
+          <ul>
+            <li><code>GET /api/admin/players</code></li>
+            <li><code>GET /api/admin/players/{userId}</code></li>
+            <li><code>GET /api/admin/invitation-codes</code></li>
+            <li><code>POST /api/admin/invitation-codes/generate</code></li>
+          </ul>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section class="panel view active" id="view-players">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Admin / Players</p>
+              <h2>玩家查询</h2>
+            </div>
+            <span class="badge">演示数据</span>
+          </div>
+
+          <form class="toolbar" id="player-filter-form">
+            <input name="keyword" placeholder="搜用户名 / 邮箱 / 游戏 ID / 邀请码" />
+            <select name="status">
+              <option value="">全部状态</option>
+              <option value="active">active</option>
+              <option value="disabled">disabled</option>
+              <option value="banned">banned</option>
+            </select>
+            <select name="gameCode">
+              <option value="">全部游戏</option>
+              <option value="minecraft">minecraft</option>
+              <option value="palworld">palworld</option>
+            </select>
+            <button type="submit">查询</button>
+          </form>
+
+          <div class="table-card">
+            <table>
+              <thead>
+                <tr>
+                  <th>用户名</th>
+                  <th>状态</th>
+                  <th>邀请码</th>
+                  <th>绑定数</th>
+                  <th>最近登录</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="players-table-body"></tbody>
+            </table>
+          </div>
+
+          <div class="detail-card" id="player-detail-card">
+            <h3>玩家详情</h3>
+            <p class="muted">点击“查看详情”加载聚合信息。</p>
+            <div id="player-detail-content"></div>
+          </div>
+        </section>
+
+        <section class="panel view" id="view-invites">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Admin / Invitation Codes</p>
+              <h2>邀请码管理</h2>
+            </div>
+            <span class="badge">支持批量生成</span>
+          </div>
+
+          <div class="split-grid">
+            <form class="card form-card" id="invite-generate-form">
+              <h3>批量生成邀请码</h3>
+              <label>
+                <span>数量</span>
+                <input type="number" name="count" min="1" max="500" value="5" required />
+              </label>
+              <label>
+                <span>最大使用次数</span>
+                <input type="number" name="maxUses" min="1" max="1000" value="3" required />
+              </label>
+              <label>
+                <span>归属用户 ID</span>
+                <input type="text" name="ownerUserId" placeholder="可选" />
+              </label>
+              <label>
+                <span>备注</span>
+                <input type="text" name="remark" placeholder="如：新服内测批次" />
+              </label>
+              <button type="submit">生成并追加到列表</button>
+            </form>
+
+            <div class="card list-card">
+              <div class="list-header">
+                <h3>邀请码列表</h3>
+                <select id="invite-status-filter">
+                  <option value="">全部状态</option>
+                  <option value="active">active</option>
+                  <option value="disabled">disabled</option>
+                  <option value="expired">expired</option>
+                  <option value="exhausted">exhausted</option>
+                </select>
+              </div>
+              <div id="invite-list" class="invite-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel view" id="view-ban">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Admin / Moderation</p>
+              <h2>封禁入口</h2>
+            </div>
+            <span class="badge warning">预留动作</span>
+          </div>
+
+          <div class="card">
+            <p>
+              这版先提供最小入口，方便后续把封禁审计、封禁原因、操作者记录接进来。
+            </p>
+            <form id="ban-form" class="ban-form">
+              <label>
+                <span>用户 ID</span>
+                <input type="text" name="userId" placeholder="例如 user_2" required />
+              </label>
+              <label>
+                <span>封禁原因</span>
+                <textarea name="reason" rows="4" placeholder="请输入封禁原因"></textarea>
+              </label>
+              <button type="submit">模拟提交封禁</button>
+            </form>
+            <div id="ban-result" class="result-box muted">尚未执行封禁操作。</div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./assets/app.js"></script>
+  </body>
+</html>

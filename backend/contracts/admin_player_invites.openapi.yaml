@@ -1,0 +1,368 @@
+openapi: 3.1.0
+info:
+  title: GameMulti Admin Player & Invitation API Draft
+  version: 0.1.0
+  description: |
+    后台玩家查询、邀请码列表/生成、基础详情查看接口草稿。
+    目标是先明确 Admin MVP 的检索条件、分页结构、详情聚合字段和邀请码管理边界。
+servers:
+  - url: https://api.example.com
+paths:
+  /api/admin/players:
+    get:
+      summary: 分页查询玩家列表
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: keyword
+          schema:
+            type: string
+          description: 按用户名、邮箱、游戏账号名或邀请码模糊搜索
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, disabled, banned]
+        - in: query
+          name: gameCode
+          schema:
+            type: string
+        - in: query
+          name: serverCode
+          schema:
+            type: string
+        - in: query
+          name: inviteCode
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum: [createdAt, lastLoginAt, username]
+            default: createdAt
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: 玩家列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, pageSize, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminPlayerSummary'
+                  page:
+                    type: integer
+                  pageSize:
+                    type: integer
+                  total:
+                    type: integer
+        '403':
+          description: 无后台权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/admin/players/{userId}:
+    get:
+      summary: 查询玩家基础详情
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 玩家详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPlayerDetail'
+        '404':
+          description: 玩家不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/admin/invitation-codes:
+    get:
+      summary: 分页查询邀请码列表
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, disabled, expired, exhausted]
+        - in: query
+          name: ownerUserId
+          schema:
+            type: string
+        - in: query
+          name: keyword
+          schema:
+            type: string
+          description: 按 code / owner username / remark 搜索
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 邀请码列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, pageSize, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminInvitationCodeSummary'
+                  page:
+                    type: integer
+                  pageSize:
+                    type: integer
+                  total:
+                    type: integer
+  /api/admin/invitation-codes/generate:
+    post:
+      summary: 批量生成邀请码
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [count, maxUses]
+              properties:
+                count:
+                  type: integer
+                  minimum: 1
+                  maximum: 500
+                maxUses:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000
+                ownerUserId:
+                  type: string
+                  nullable: true
+                startsAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                remark:
+                  type: string
+                  maxLength: 200
+      responses:
+        '201':
+          description: 生成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [createdCount, items]
+                properties:
+                  createdCount:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminInvitationCodeSummary'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    AdminPlayerSummary:
+      type: object
+      required: [userId, username, email, status, inviteCode, bindingCount, createdAt]
+      properties:
+        userId:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled, banned]
+        inviteCode:
+          type: string
+          nullable: true
+        invitedByUserId:
+          type: string
+          nullable: true
+        bindingCount:
+          type: integer
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    AdminPlayerDetail:
+      type: object
+      required: [userId, profile, invite, bindings, recentRewardSettlements]
+      properties:
+        userId:
+          type: string
+        profile:
+          $ref: '#/components/schemas/AdminPlayerSummary'
+        invite:
+          type: object
+          nullable: true
+          properties:
+            code:
+              type: string
+            codeStatus:
+              type: string
+            usedCount:
+              type: integer
+            maxUses:
+              type: integer
+            expiresAt:
+              type: string
+              format: date-time
+              nullable: true
+        bindings:
+          type: array
+          items:
+            type: object
+            required: [bindingId, gameCode, serverCode, platform, gameUserId, bindStatus]
+            properties:
+              bindingId:
+                type: string
+              gameCode:
+                type: string
+              serverCode:
+                type: string
+              platform:
+                type: string
+              gameUserId:
+                type: string
+              displayName:
+                type: string
+                nullable: true
+              bindStatus:
+                type: string
+              verifiedAt:
+                type: string
+                format: date-time
+                nullable: true
+        recentRewardSettlements:
+          type: array
+          items:
+            type: object
+            required: [settlementId, eventType, amount, status, createdAt]
+            properties:
+              settlementId:
+                type: string
+              eventType:
+                type: string
+              amount:
+                type: integer
+              status:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+    AdminInvitationCodeSummary:
+      type: object
+      required: [id, code, status, maxUses, usedCount, createdAt]
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled, expired, exhausted]
+        maxUses:
+          type: integer
+        usedCount:
+          type: integer
+        remainingUses:
+          type: integer
+        ownerUserId:
+          type: string
+          nullable: true
+        ownerUsername:
+          type: string
+          nullable: true
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        remark:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true

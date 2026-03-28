@@ -1,0 +1,74 @@
+/// 奖励规则与结算链路 Prisma 草稿。
+/// 目标：先把 reward_rules、coin_reward_settlements 与钱包入账对接点表达清楚。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RewardRuleStatus {
+  draft
+  active
+  disabled
+}
+
+enum RewardSettlementStatus {
+  pending
+  credited
+  skipped
+  failed
+}
+
+model RewardRule {
+  id                   String   @id @default(cuid())
+  name                 String
+  gameCode             String
+  eventType            String
+  rewardType           String   @default("coin")
+  rewardValue          Int
+  priority             Int      @default(100)
+  triggerWindowSeconds Int?
+  matcher              Json
+  payoutConfig         Json?
+  status               RewardRuleStatus @default(draft)
+  remark               String?
+  createdBy            String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  settlements          CoinRewardSettlement[]
+
+  @@index([gameCode, eventType, status])
+  @@index([status, priority])
+}
+
+model CoinRewardSettlement {
+  id                String   @id @default(cuid())
+  ruleId            String
+  userId            String
+  gameCode          String
+  eventType         String
+  sourceEventId     String?
+  idempotencyKey    String   @unique
+  amount            Int
+  currency          String   @default("coin")
+  status            RewardSettlementStatus @default(pending)
+  walletLedgerId    String?
+  eventPayload      Json?
+  evaluationTrace   Json?
+  failureReason     String?
+  processedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  rule              RewardRule @relation(fields: [ruleId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([gameCode, eventType, createdAt])
+  @@index([status, createdAt])
+  @@index([sourceEventId])
+}
