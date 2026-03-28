@@ -162,3 +162,43 @@ PR / MR 描述至少包含：
 ### 第二优先
 已完成但仍停留在“直接落 main 的文档/骨架成果”，后续如继续演进实现，应从 `develop` 重新衍生功能分支，不再继续直接堆到 `main`。
 
+
+---
+
+## 8. 第三阶段任务的强制执行口径
+
+从第三阶段开始，下列子任务统一按 `develop + feature/*` 模式执行：
+
+- 推进 PoC 游戏插件到可实机验证版本
+- 打通邀请制账户与绑定真实联调闭环
+- 实现钱包与结算最小可运行后端服务
+- 实现商城与订单最小可运行闭环
+- 推进论坛 SSO 到可配置接入版本
+- 实现 Admin 可操作界面基础版
+
+### 强制要求
+
+1. **必须从 `develop` 拉分支**
+2. **必须使用 `feature/<task-name>` 命名方式**
+3. **不得直接把实现型代码推到 `main`**
+4. **交付摘要必须写明：分支名、commit、改动路径、验证方式**
+5. **若任务处于 review/rework，修复也必须继续在对应 feature 分支完成**
+
+### 推荐分支示例
+
+- `feature/poc-plugin-runtime`
+- `feature/invite-binding-runtime`
+- `feature/wallet-settlement-runtime`
+- `feature/redeem-order-runtime`
+- `feature/forum-sso-runtime`
+- `feature/admin-basic-ui`
+
+### review / in_progress 任务追加说明
+
+对于当前已经进入 `review` 或 `in_progress` 的第三阶段任务，后续补交与修正也统一按该规则执行：
+
+- 在 `develop` 基础上保持或补建对应 feature 分支
+- 后续修订提交继续落在该 feature 分支
+- 审查通过后合并到 `develop`
+- 阶段稳定后再由 `develop` 合并到 `main`
+
