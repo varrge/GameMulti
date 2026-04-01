@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./data/redis:/data
+
+  discourse:
+    image: discourse/discourse:stable
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "${DISCOURSE_HTTP_PORT:-3000}:80"
+    environment:
+      DISCOURSE_HOSTNAME: ${DISCOURSE_HOSTNAME}
+      DISCOURSE_DEVELOPER_EMAILS: ${DISCOURSE_DEVELOPER_EMAILS}
+      DISCOURSE_SMTP_ADDRESS: ${DISCOURSE_SMTP_ADDRESS}
+      DISCOURSE_SMTP_PORT: ${DISCOURSE_SMTP_PORT}
+      DISCOURSE_SMTP_USER_NAME: ${DISCOURSE_SMTP_USER_NAME}
+      DISCOURSE_SMTP_PASSWORD: ${DISCOURSE_SMTP_PASSWORD}
+      DISCOURSE_SMTP_ENABLE_START_TLS: ${DISCOURSE_SMTP_ENABLE_START_TLS:-true}
+      DISCOURSE_SMTP_OPENSSL_VERIFY_MODE: ${DISCOURSE_SMTP_OPENSSL_VERIFY_MODE:-}
+      DISCOURSE_SMTP_AUTHENTICATION: ${DISCOURSE_SMTP_AUTHENTICATION:-plain}
+      DISCOURSE_NOTIFICATION_EMAIL: ${DISCOURSE_NOTIFICATION_EMAIL}
+      DISCOURSE_NOTIFICATION_EMAIL_NAME: ${DISCOURSE_NOTIFICATION_EMAIL_NAME:-联机社区}
+      DISCOURSE_DB_HOST: postgres
+      DISCOURSE_DB_NAME: ${POSTGRES_DB}
+      DISCOURSE_DB_USERNAME: ${POSTGRES_USER}
+      DISCOURSE_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DISCOURSE_REDIS_HOST: redis
+      DISCOURSE_SERVE_STATIC_ASSETS: "true"
+      DISCOURSE_FORCE_HTTPS: "false"
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+      LANGUAGE: en_US.UTF-8
+      RAILS_ENV: production
+      CREATE_DB_ON_BOOT: 1
+      MIGRATE_ON_BOOT: 1
+      PRECOMPILE_ON_BOOT: 0
+      UNICORN_WORKERS: 3
+      UNICORN_SIDEKIQS: 1
+    volumes:
+      - ./data/discourse:/shared
+      - ./host_patches/install-ssl.private-ip-skip.sh:/etc/runit/1.d/install-ssl:ro
