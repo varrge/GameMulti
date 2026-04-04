@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  active
+  disabled
+  banned
+}
+
+enum InvitationCodeStatus {
+  active
+  disabled
+  expired
+  exhausted
+}
+
+enum BindingSessionStatus {
+  pending
+  confirmed
+  expired
+  cancelled
+}
+
+enum UserGameBindingStatus {
+  active
+  unbinding
+  unbound
+  blocked
+}
+
+model User {
+  id               String   @id @default(cuid())
+  username         String   @unique
+  email            String   @unique
+  passwordHash     String
+  status           UserStatus @default(active)
+  source           String   @default("invite_register")
+  invitedByUserId  String?
+  invitationCodeId String?
+  registerIp       String?
+  registerUserAgent String?
+  lastLoginAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  invitedBy        User?    @relation("UserInvites", fields: [invitedByUserId], references: [id])
+  invitees         User[]   @relation("UserInvites")
+
+  invitationCode   InvitationCode? @relation(fields: [invitationCodeId], references: [id])
+  invitationUsages InvitationCodeUsage[]
+  gameBindings     UserGameBinding[]
+}
+
+model InvitationCode {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  createdBy   String
+  ownerUserId String?
+  batchId     String?
+  maxUses     Int
+  usedCount   Int      @default(0)
+  startsAt    DateTime?
+  expiresAt   DateTime?
+  status      InvitationCodeStatus @default(active)
+  remark      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  usages      InvitationCodeUsage[]
+}
+
+model InvitationCodeUsage {
+  id               String   @id @default(cuid())
+  invitationCodeId String
+  userId           String   @unique
+  inviterUserId    String?
+  usedIp           String?
+  usedUserAgent    String?
+  usedAt           DateTime @default(now())
+
+  invitationCode   InvitationCode @relation(fields: [invitationCodeId], references: [id])
+  user             User           @relation(fields: [userId], references: [id])
+
+  @@index([invitationCodeId, usedAt])
+}
+
+model Game {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts  GameAccount[]
+  servers   GameServer[]
+  bindingSessions BindingSession[]
+}
+
+model GameServer {
+  id           String   @id @default(cuid())
+  gameId       String
+  serverCode   String   @unique
+  serverName   String
+  region       String?
+  endpointHost String?
+  endpointPort Int?
+  adapterType  String?
+  status       String
+  meta         Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  game         Game     @relation(fields: [gameId], references: [id])
+  pluginClients ServerPluginClient[]
+  bindingSessions BindingSession[]
+  userBindings UserGameBinding[]
+}
+
+model ServerPluginClient {
+  id               String   @id @default(cuid())
+  serverId         String
+  clientKey        String   @unique
+  clientSecretHash String
+  pluginVersion    String?
+  protocolVersion  String?
+  lastHeartbeatAt  DateTime?
+  status           String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  server           GameServer @relation(fields: [serverId], references: [id])
+  bindingSessions  BindingSession[]
+}
+
+model GameAccount {
+  id                   String   @id @default(cuid())
+  gameId               String
+  platform             String
+  gameUserId           String
+  normalizedGameUserId String
+  displayName          String?
+  extraMeta            Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  game                 Game     @relation(fields: [gameId], references: [id])
+  userBindings         UserGameBinding[]
+
+  @@unique([gameId, platform, normalizedGameUserId])
+  @@index([gameId, platform, gameUserId])
+}
+
+model BindingSession {
+  id                     String   @id @default(cuid())
+  gameId                 String
+  serverId               String
+  pluginClientId         String
+  gameUserId             String
+  platform               String
+  displayName            String?
+  bindMode               String
+  token                  String   @unique
+  pairCode               String   @unique
+  status                 BindingSessionStatus @default(pending)
+  gameAccountSnapshot    Json?
+  expiresAt              DateTime
+  usedAt                 DateTime?
+  usedByUserId           String?
+  confirmedBindingId     String?
+  confirmedGameAccountId String?
+  createdIp              String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  game                   Game               @relation(fields: [gameId], references: [id])
+  server                 GameServer         @relation(fields: [serverId], references: [id])
+  pluginClient           ServerPluginClient @relation(fields: [pluginClientId], references: [id])
+
+  @@index([token])
+  @@index([pairCode])
+  @@index([status, expiresAt])
+}
+
+model UserGameBinding {
+  id                  String   @id @default(cuid())
+  userId              String
+  gameAccountId       String
+  serverId            String?
+  bindStatus          UserGameBindingStatus @default(active)
+  bindSource          String
+  verifiedBy          String?
+  verifiedAt          DateTime?
+  unbindRequestedAt   DateTime?
+  unbindApprovedAt    DateTime?
+  unbindCooldownUntil DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user                User       @relation(fields: [userId], references: [id])
+  gameAccount         GameAccount @relation(fields: [gameAccountId], references: [id])
+  server              GameServer? @relation(fields: [serverId], references: [id])
+
+  @@unique([userId, gameAccountId])
+  @@index([userId, bindStatus])
+  @@index([gameAccountId, bindStatus])
+}

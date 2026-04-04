@@ -1,57 +1,75 @@
 # GameMulti
 
-GameMulti 是一个面向多游戏联机社区场景的 Web 平台规划仓库。
+GameMulti 是一个面向多游戏联机场景的多系统平台仓库。当前仓库同时承载主站、后台原型、后端 API、论坛接入、部署资产与规划文档，并按统一外层结构逐步收口。
 
-当前仓库主要用于沉淀项目的早期规划文档，覆盖：
+## 仓库结构
 
-- 项目总体规划
-- 技术选型
-- 数据库设计
-- 接口边界
-- 开发排期
-- 任务拆分
-- ER 与业务流程说明
+```text
+apps/
+  web/        # 主站前端（原 community-web）
+  admin/      # 后台前端/后台原型（原 admin-demo）
+  api/        # 后端 API 与适配逻辑（原 backend）
 
-## 当前规划文档目录
+services/
+  forum/      # 论坛作为独立服务的运行边界与说明
 
-位于：`docs/plan/`
+bridges/
+  forum/      # 主站/后台/API 与论坛之间的桥接层说明
 
-包括：
+infra/
+  forum/      # 现有论坛基础设施资产
+  compose/    # 统一 compose 入口预留
+  nginx/      # 统一反代配置预留
+  scripts/    # 部署脚本预留
+  env/        # 环境模板预留
 
-- `project_overview.md`
-- `architecture_and_tech_stack.md`
-- `database_design.md`
-- `database_fields_explained.md`
-- `api_and_module_boundaries.md`
-- `development_milestones.md`
-- `task_dispatch_templates.md`
-- `er_and_flow_explanations.md`
-- `poc_game_recommendation.md`
-- `api_examples_detailed.md`
-- `prisma_schema_draft.md`
-- `repository_collaboration_and_deployment_baseline.md`
-- `backend/invite_binding_backend_foundation.md`
+setup/
+  installer/  # 安装向导与初始化流程
 
-并新增了一组后端基础骨架：
+docs/
+  plan/       # 项目规划文档
+  backend/    # 后端与后台相关方案文档
+  integration/# 联调与验证文档
 
-- `backend/contracts/invite_binding.openapi.yaml`
-- `backend/schemas/invite_binding.prisma`
-- `backend/examples/invite_binding_service.js`
+plugin-poc/
+  minecraft-js/ # 首个游戏插件 PoC
+```
 
-## 当前建议方向
+## 路径迁移映射
 
-- 主站统一身份中心
-- 邀请制社区准入
-- 游戏内发起绑定，Web 端确认
-- 自定义插件接入游戏服务器
-- 金币账本与商城兑换分层设计
-- Discourse 作为论坛系统首选
+- `community-web/` → `apps/web/`
+- `backend/` → `apps/api/`
+- `admin-demo/` → `apps/admin/`
 
-## 下一步建议
+本次整理以“路径收口”为主，不在同一轮内强行完成论坛真实联调或后台/API 架构重写。
 
-1. 确认首个 PoC 游戏
-2. 初始化前后端仓库结构
-3. 落地 Prisma / SQL 模型
-4. 输出第一版接口契约
-5. 启动前后端与插件并行开发
+## 当前核心内容
 
+### 主站
+- 路径：`apps/web/`
+- 职责：用户首页、论坛入口、安装后面向玩家/社区的 Web 主界面
+
+### 后台
+- 路径：`apps/admin/`
+- 职责：后台管理界面原型，后续逐步演进为正式后台
+
+### API
+- 路径：`apps/api/`
+- 职责：邀请绑定、论坛接入、奖励结算等后端契约、样例服务、脚本与 schema
+
+### 论坛
+- 路径入口：`services/forum/`
+- 当前历史基础设施资产仍位于：`infra/forum/`
+- 职责：论坛作为独立服务运行，通过 bridge 与主业务系统衔接
+
+### 规划与联调文档
+- `docs/plan/`：架构、里程碑、部署规划
+- `docs/backend/`：后端/后台能力设计文档
+- `docs/integration/`：联调、验证、执行结果文档
+
+## 下一步方向
+
+1. 收口主站部署与访问入口
+2. 完善统一云部署结构（compose / nginx / deploy / env）
+3. 推进论坛真实 SSO bridge 与后台联调
+4. 继续把后台/API/安装流程按既定结构演进
