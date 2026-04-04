@@ -17,7 +17,7 @@
 ## 仓库内交付清单
 
 ```text
-backend/
+apps/api/
   adapters/
     forum_provider_adapter.js
     discourse_forum_adapter.js
@@ -30,7 +30,7 @@ backend/
   scripts/
     forum_sso_verify.js
 docs/
-  backend/
+  apps/api/
     forum_sso_foundation.md
 ```
 
@@ -42,7 +42,7 @@ docs/
 - `adapters/discourse_forum_adapter.js`：提供 Discourse 定向接入骨架
 - `config/forum_sso.example.env`：收敛可配置项，方便环境落地
 - `scripts/forum_sso_verify.js`：本地验证主流程是否打通
-- `docs/backend/forum_sso_foundation.md`：记录接入方式、映射关系和验证方法
+- `docs/apps/api/forum_sso_foundation.md`：记录接入方式、映射关系和验证方法
 
 ---
 
@@ -79,7 +79,7 @@ docs/
 
 ## 二、环境变量与配置项
 
-样例文件：`backend/config/forum_sso.example.env`
+样例文件：`apps/api/config/forum_sso.example.env`
 
 ### 必填项
 
@@ -204,7 +204,7 @@ docs/
 
 ## 五、适配器契约
 
-统一契约文件：`backend/adapters/forum_provider_adapter.js`
+统一契约文件：`apps/api/adapters/forum_provider_adapter.js`
 
 具体论坛实现至少要补齐以下方法：
 
@@ -235,7 +235,7 @@ docs/
 
 ## 六、Discourse 接入骨架说明
 
-示例文件：`backend/adapters/discourse_forum_adapter.js`
+示例文件：`apps/api/adapters/discourse_forum_adapter.js`
 
 当前仓库里给的是 **安全骨架版**，特点：
 
@@ -256,16 +256,16 @@ docs/
 
 ## 七、最小验证方法
 
-验证脚本：`backend/scripts/forum_sso_verify.js`
+验证脚本：`apps/api/scripts/forum_sso_verify.js`
 
 ### 本地验证命令
 
 ```bash
 cd /home/yinan/.openclaw/workspace/GameMulti
 set -a
-source backend/config/forum_sso.example.env
+source apps/api/config/forum_sso.example.env
 set +a
-node backend/scripts/forum_sso_verify.js
+node apps/api/scripts/forum_sso_verify.js
 ```
 
 ### 脚本验证内容
@@ -293,7 +293,7 @@ node backend/scripts/forum_sso_verify.js
 ## 八、真实环境接入步骤
 
 1. **确认目标论坛实现**：至少明确是 Discourse / Flarum / NodeBB / 自研
-2. **准备环境变量**：基于 `backend/config/forum_sso.example.env` 注入真实值
+2. **准备环境变量**：基于 `apps/api/config/forum_sso.example.env` 注入真实值
 3. **实现具体 adapter**：优先补齐用户查询、用户创建、资料同步、封禁同步
 4. **接主站入口**：在“进入论坛”按钮或用户中心调用 `issueForumEntry()`
 5. **接论坛桥接消费端**：论坛侧落 ticket 消费与登录态建立逻辑

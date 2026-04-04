@@ -4,9 +4,9 @@
 
 在 `GameMulti` 仓库内补了一个 **零依赖、可直接本地打开的 Admin 演示页**，用于承接已有的后台接口契约与示例服务：
 
-- `admin-demo/index.html`：Admin 页面入口
-- `admin-demo/assets/styles.css`：页面样式
-- `admin-demo/assets/app.js`：演示逻辑与假数据
+- `apps/admin/index.html`：Admin 页面入口
+- `apps/admin/assets/styles.css`：页面样式
+- `apps/admin/assets/app.js`：演示逻辑与假数据
 
 覆盖能力：
 
@@ -25,28 +25,28 @@
 
 ### 1. 玩家查询页
 
-- 页面入口：`admin-demo/index.html`（默认首屏）
-- 页面逻辑：`admin-demo/assets/app.js`
-- 对应契约：`backend/contracts/admin_player_invites.openapi.yaml`
+- 页面入口：`apps/admin/index.html`（默认首屏）
+- 页面逻辑：`apps/admin/assets/app.js`
+- 对应契约：`apps/api/contracts/admin_player_invites.openapi.yaml`
   - `GET /api/admin/players`
   - `GET /api/admin/players/{userId}`
-- 对应后端示例：`backend/examples/admin_player_invites_service.js`
+- 对应后端示例：`apps/api/examples/admin_player_invites_service.js`
 
 ### 2. 邀请码管理页
 
-- 页面入口：`admin-demo/index.html` → “邀请码管理” tab
-- 页面逻辑：`admin-demo/assets/app.js`
-- 对应契约：`backend/contracts/admin_player_invites.openapi.yaml`
+- 页面入口：`apps/admin/index.html` → “邀请码管理” tab
+- 页面逻辑：`apps/admin/assets/app.js`
+- 对应契约：`apps/api/contracts/admin_player_invites.openapi.yaml`
   - `GET /api/admin/invitation-codes`
   - `POST /api/admin/invitation-codes/generate`
-- 对应后端示例：`backend/examples/admin_player_invites_service.js`
+- 对应后端示例：`apps/api/examples/admin_player_invites_service.js`
 
 ### 3. 封禁入口
 
-- 页面入口：`admin-demo/index.html` → “封禁入口” tab
-- 页面逻辑：`admin-demo/assets/app.js`
+- 页面入口：`apps/admin/index.html` → “封禁入口” tab
+- 页面逻辑：`apps/admin/assets/app.js`
 - 当前状态：演示骨架，尚未绑定真实后端接口
-- 可复用后端基础：`docs/backend/wallet_redeem_ban_foundation.md`
+- 可复用后端基础：`docs/apps/api/wallet_redeem_ban_foundation.md`
 
 ## 本地运行方式
 
@@ -57,7 +57,7 @@
 直接打开：
 
 ```text
-admin-demo/index.html
+apps/admin/index.html
 ```
 
 ### 方式 B：起一个静态文件服务（推荐）
@@ -71,7 +71,7 @@ python3 -m http.server 4173
 然后访问：
 
 ```text
-http://127.0.0.1:4173/admin-demo/
+http://127.0.0.1:4173/apps/admin/
 ```
 
 ## 适合下一步怎么接

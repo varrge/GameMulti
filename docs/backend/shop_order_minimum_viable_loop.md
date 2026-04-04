@@ -14,25 +14,25 @@
 
 ## 交付文件
 
-- 数据模型：`backend/schemas/wallet_and_redeem.prisma`
-- 服务示例：`backend/examples/wallet_and_redeem_service.js`
-- 交付说明：`docs/backend/shop_order_minimum_viable_loop.md`
+- 数据模型：`apps/api/schemas/wallet_and_redeem.prisma`
+- 服务示例：`apps/api/examples/wallet_and_redeem_service.js`
+- 交付说明：`docs/apps/api/shop_order_minimum_viable_loop.md`
 
 ## 代码映射
 
 ### 1. 商品主数据
 
-位于 `backend/schemas/wallet_and_redeem.prisma`：
+位于 `apps/api/schemas/wallet_and_redeem.prisma`：
 
 - `RedeemItem`：商品编码、价格、库存、发货模版、状态
 
-位于 `backend/examples/wallet_and_redeem_service.js`：
+位于 `apps/api/examples/wallet_and_redeem_service.js`：
 
 - `seed()`：预置 `minecraft_vip_7d` 商品，包含价格、库存、发货模版
 
 ### 2. 下单与扣费
 
-位于 `backend/examples/wallet_and_redeem_service.js`：
+位于 `apps/api/examples/wallet_and_redeem_service.js`：
 
 - `createRedeemOrder()`
   - 校验商品存在且处于 `active`
@@ -43,12 +43,12 @@
 
 ### 3. 订单与订单项
 
-位于 `backend/schemas/wallet_and_redeem.prisma`：
+位于 `apps/api/schemas/wallet_and_redeem.prisma`：
 
 - `RedeemOrder`：订单主单据
 - `RedeemOrderItem`：订单项快照与交付快照
 
-位于 `backend/examples/wallet_and_redeem_service.js`：
+位于 `apps/api/examples/wallet_and_redeem_service.js`：
 
 - `createRedeemOrder()` 中创建：
   - `order`
@@ -63,11 +63,11 @@
 
 ### 4. 发货任务
 
-位于 `backend/schemas/wallet_and_redeem.prisma`：
+位于 `apps/api/schemas/wallet_and_redeem.prisma`：
 
 - `RewardDeliveryJob`：发货通道、目标、重试、锁定、去重字段
 
-位于 `backend/examples/wallet_and_redeem_service.js`：
+位于 `apps/api/examples/wallet_and_redeem_service.js`：
 
 - `createRedeemOrder()` 内生成 `job`
   - `deliveryChannel=game_plugin`
@@ -76,7 +76,7 @@
 
 ### 5. 发货完成回写
 
-位于 `backend/examples/wallet_and_redeem_service.js`：
+位于 `apps/api/examples/wallet_and_redeem_service.js`：
 
 - `markDeliveryJobSucceeded()`
   - 把任务状态改成 `succeeded`
@@ -88,7 +88,7 @@
 在仓库根目录执行：
 
 ```bash
-node backend/examples/wallet_and_redeem_service.js
+node apps/api/examples/wallet_and_redeem_service.js
 ```
 
 ### 预期可以看到的最小链路
@@ -103,7 +103,7 @@ node backend/examples/wallet_and_redeem_service.js
 已执行：
 
 ```bash
-node backend/examples/wallet_and_redeem_service.js
+node apps/api/examples/wallet_and_redeem_service.js
 ```
 
 观察到的关键结果：

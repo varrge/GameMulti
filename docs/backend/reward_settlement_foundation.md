@@ -14,7 +14,7 @@
 ## 交付结构
 
 ```text
-backend/
+apps/api/
   contracts/
     reward_settlement.openapi.yaml
   schemas/

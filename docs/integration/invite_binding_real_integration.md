@@ -10,20 +10,20 @@
 5. `POST /api/bindings/session/by-pair-code`
 6. `POST /api/bindings/confirm`
 
-联调使用仓库内的最小可运行服务 `backend/examples/invite_binding_service.js`，并通过 `backend/scripts/invite_binding_verify.js` 固化验证步骤，执行结果落在 `docs/integration/invite_binding_real_integration_result.json`。
+联调使用仓库内的最小可运行服务 `apps/api/examples/invite_binding_service.js`，并通过 `apps/api/scripts/invite_binding_verify.js` 固化验证步骤，执行结果落在 `docs/integration/invite_binding_real_integration_result.json`。
 
 ## 交付路径
-- 服务示例：`backend/examples/invite_binding_service.js`
-- 验证脚本：`backend/scripts/invite_binding_verify.js`
+- 服务示例：`apps/api/examples/invite_binding_service.js`
+- 验证脚本：`apps/api/scripts/invite_binding_verify.js`
 - 验证结果：`docs/integration/invite_binding_real_integration_result.json`
 - 闭环说明：`docs/integration/invite_binding_real_integration.md`
-- 接口契约：`backend/contracts/invite_binding.openapi.yaml`
+- 接口契约：`apps/api/contracts/invite_binding.openapi.yaml`
 
 ## 可重复执行的验证步骤
 在仓库根目录执行：
 
 ```bash
-node backend/scripts/invite_binding_verify.js
+node apps/api/scripts/invite_binding_verify.js
 ```
 
 预期结果：标准输出为 JSON，包含 `path`、`state`、`summary` 三段。

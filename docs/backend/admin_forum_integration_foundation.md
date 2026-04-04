@@ -5,22 +5,22 @@
 仓库内新增了 Admin 侧论坛联动最小闭环骨架，覆盖 4 类后台能力：
 
 1. **论坛账户映射列表查询**
-   - 契约：`backend/contracts/admin_forum_integration.openapi.yaml`
+   - 契约：`apps/api/contracts/admin_forum_integration.openapi.yaml`
    - 接口：`GET /api/admin/forum/accounts`
    - 关注字段：主站用户信息、forum account 映射、`syncStatus`、`mappingSource`
 
 2. **论坛账户映射详情查看**
-   - 契约：`backend/contracts/admin_forum_integration.openapi.yaml`
+   - 契约：`apps/api/contracts/admin_forum_integration.openapi.yaml`
    - 接口：`GET /api/admin/forum/accounts/{forumAccountId}`
    - 返回：账户摘要 + 最近 ticket + 最近 sync jobs
 
 3. **SSO ticket 状态查询**
-   - 契约：`backend/contracts/admin_forum_integration.openapi.yaml`
+   - 契约：`apps/api/contracts/admin_forum_integration.openapi.yaml`
    - 接口：`GET /api/admin/forum/tickets`
    - 关注字段：`status`、`redirectUrl`、`expiresAt`、`consumedAt`
 
 4. **sync job 状态查询 + 最小人工操作（重试资料同步）**
-   - 契约：`backend/contracts/admin_forum_integration.openapi.yaml`
+   - 契约：`apps/api/contracts/admin_forum_integration.openapi.yaml`
    - 接口：
      - `GET /api/admin/forum/sync-jobs`
      - `POST /api/admin/forum/sync-jobs/{jobId}/retry-profile`
@@ -32,7 +32,7 @@
 ## 仓库文件路径
 
 ```text
-backend/
+apps/api/
   contracts/
     admin_forum_integration.openapi.yaml
   examples/
@@ -50,9 +50,9 @@ backend/
 
 这次没有再造一套论坛状态模型，而是直接复用现有论坛 SSO 基础模块：
 
-- 底层服务：`backend/examples/forum_sso_service.js`
-- 适配器骨架：`backend/adapters/discourse_forum_adapter.js`
-- 数据模型草稿：`backend/schemas/forum_sso.prisma`
+- 底层服务：`apps/api/examples/forum_sso_service.js`
+- 适配器骨架：`apps/api/adapters/discourse_forum_adapter.js`
+- 数据模型草稿：`apps/api/schemas/forum_sso.prisma`
 
 Admin 侧只是把这些状态按后台查询口径重新聚合出来：
 
@@ -142,7 +142,7 @@ Admin 侧只是把这些状态按后台查询口径重新聚合出来：
 在仓库根目录执行：
 
 ```bash
-node backend/examples/admin_forum_integration_service.js
+node apps/api/examples/admin_forum_integration_service.js
 ```
 
 预期会打印：

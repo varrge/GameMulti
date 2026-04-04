@@ -122,7 +122,7 @@ PR / MR 描述至少包含：
 - 仓库：GameMulti
 - 分支：feature/invite-binding-runtime
 - commit：abc1234
-- 改动路径：backend/, docs/integration/
+- 改动路径：apps/api/, docs/integration/
 - 验证方式：本地脚本 + 手工接口调用
 - PR：待创建 / 已创建
 ```

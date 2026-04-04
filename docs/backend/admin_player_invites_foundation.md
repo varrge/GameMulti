@@ -12,7 +12,7 @@
 ## 交付结构
 
 ```text
-backend/
+apps/api/
   contracts/
     admin_player_invites.openapi.yaml
   schemas/

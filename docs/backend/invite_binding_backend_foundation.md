@@ -20,7 +20,7 @@
 ## 一、推荐目录结构
 
 ```text
-backend/
+apps/api/
   contracts/
     invite_binding.openapi.yaml
   schemas/
@@ -373,9 +373,9 @@ backend/
 
 ## 九、后续直接可接的实现顺序
 
-1. 先把 `backend/schemas/invite_binding.prisma` 接入真实 Prisma 工程
-2. 把 `backend/contracts/invite_binding.openapi.yaml` 作为接口契约底稿
-3. 参考 `backend/examples/invite_binding_service.js` 迁移到正式 service 层
+1. 先把 `apps/api/schemas/invite_binding.prisma` 接入真实 Prisma 工程
+2. 把 `apps/api/contracts/invite_binding.openapi.yaml` 作为接口契约底稿
+3. 参考 `apps/api/examples/invite_binding_service.js` 迁移到正式 service 层
 4. 增加数据库 migration
 5. 增加单元测试与接口测试
 

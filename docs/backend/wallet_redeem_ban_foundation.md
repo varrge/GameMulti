@@ -22,8 +22,8 @@
 
 ## 文件路径
 
-- Prisma 草稿：`backend/schemas/wallet_and_redeem.prisma`
-- 服务示例：`backend/examples/wallet_and_redeem_service.js`
+- Prisma 草稿：`apps/api/schemas/wallet_and_redeem.prisma`
+- 服务示例：`apps/api/examples/wallet_and_redeem_service.js`
 
 ## 数据模型设计要点
 
@@ -70,7 +70,7 @@
 
 ## 服务骨架说明
 
-`backend/examples/wallet_and_redeem_service.js` 里提供了一个内存版示例服务：
+`apps/api/examples/wallet_and_redeem_service.js` 里提供了一个内存版示例服务：
 
 - `creditWallet()` / `debitWallet()`：最小钱包记账骨架
 - `createRedeemOrder()`：扣币 + 建单 + 生成发货任务
