@@ -1,0 +1,18 @@
+检测到旧链路残留容器 gamemulti-web，来自其他工作区：/home/yinan/.openclaw/workspace-devops/GameMulti/infra/compose/docker-compose.yml
+将尝试清理旧的 gamemulti compose 资源，避免容器名冲突。
+==> 使用源码目录: /home/yinan/.openclaw/workspace/GameMulti/apps/web
+==> Compose 文件: /home/yinan/.openclaw/workspace/GameMulti/infra/compose/docker-compose.yml
+==> Compose 项目名: gamemulti
+==> HTTP 入口端口: 8080
+==> 启动 compose 服务
+ Container gamemulti-nginx Creating 
+ Container gamemulti-nginx Error response from daemon: Conflict. The container name "/gamemulti-nginx" is already in use by container "1eaaf919f7cdbfe5504cb393596f79cbfc03712b2a9 Container gamemulti-web Starting 
+ Container gamemulti-web Started 
+ Container gamemulti-web Waiting 
+ Container gamemulti-web Healthy 
+ Container gamemulti-nginx Starting 
+ Container gamemulti-nginx Started 
+==> 当前服务状态
+NAME              IMAGE               COMMAND                  SERVICE   CREATED          STATUS                            PORTS
+gamemulti-nginx   nginx:1.27-alpine   "/docker-entrypoint.…"   nginx     21 seconds ago   Up 2 seconds (health: starting)   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
+gamemulti-web     node:22-bookworm    "docker-entrypoint.s…"   web       21 seconds ago   Up 20 seconds (healthy)           3301/tcp

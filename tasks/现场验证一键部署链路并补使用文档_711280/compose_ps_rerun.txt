@@ -1,0 +1,3 @@
+NAME              IMAGE               COMMAND                  SERVICE   CREATED              STATUS                        PORTS
+gamemulti-nginx   nginx:1.27-alpine   "/docker-entrypoint.…"   nginx     About a minute ago   Up 48 seconds (healthy)       0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
+gamemulti-web     node:22-bookworm    "docker-entrypoint.s…"   web       About a minute ago   Up About a minute (healthy)   3301/tcp

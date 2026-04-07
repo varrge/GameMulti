@@ -1,0 +1,9 @@
+ M apps/web/package-lock.json
+?? community-web/
+?? docs/deployment/
+?? infra/compose/.env
+?? infra/compose/.env.example
+?? infra/compose/docker-compose.yml
+?? infra/deploy/up.sh
+?? infra/nginx/default.conf
+?? tasks/

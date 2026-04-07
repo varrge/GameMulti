@@ -1,0 +1,13 @@
+==> 使用源码目录: /home/yinan/.openclaw/workspace/GameMulti/apps/web
+==> Compose 文件: /home/yinan/.openclaw/workspace/GameMulti/infra/compose/docker-compose.yml
+==> Compose 项目名: gamemulti
+==> HTTP 入口端口: 8080
+==> 启动 compose 服务
+ Container gamemulti-web Running 
+ Container gamemulti-nginx Running 
+ Container gamemulti-web Waiting 
+ Container gamemulti-web Healthy 
+==> 当前服务状态
+NAME              IMAGE               COMMAND                  SERVICE   CREATED       STATUS                 PORTS
+gamemulti-nginx   nginx:1.27-alpine   "/docker-entrypoint.…"   nginx     6 hours ago   Up 6 hours (healthy)   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
+gamemulti-web     node:22-bookworm    "docker-entrypoint.s…"   web       6 hours ago   Up 6 hours (healthy)   3301/tcp

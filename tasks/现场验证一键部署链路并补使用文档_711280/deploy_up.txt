@@ -1,0 +1,8 @@
+==> 使用源码目录: /home/yinan/.openclaw/workspace/GameMulti/apps/web
+==> Compose 文件: /home/yinan/.openclaw/workspace/GameMulti/infra/compose/docker-compose.yml
+==> HTTP 入口端口: 8080
+==> 启动 compose 服务
+time="2026-04-06T13:02:55Z" level=warning msg="a network with name gamemulti_app_net exists but was not created for project \"compose\".\nSet `external: true` to use an existing network"
+ Container gamemulti-web Creating 
+ Container gamemulti-web Error response from daemon: Conflict. The container name "/gamemulti-web" is already in use by container "60dd19ad9a9bd8016a69a13856185145548a799a23bade12ab0ff19c657e5f9d". You have to remove (or rename) that container to be able to reuse that name. 
+Error response from daemon: Conflict. The container name "/gamemulti-web" is already in use by container "60dd19ad9a9bd8016a69a13856185145548a799a23bade12ab0ff19c657e5f9d". You have to remove (or rename) that container to be able to reuse that name.

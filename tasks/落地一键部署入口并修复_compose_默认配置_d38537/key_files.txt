@@ -1,0 +1,4 @@
+infra/deploy/up.sh
+infra/compose/docker-compose.yml
+infra/compose/.env.example
+infra/nginx/default.conf
