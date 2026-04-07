@@ -17,7 +17,7 @@ import {
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { cn } from "@/src/lib/utils";
-import { getDefaultPostLoginRedirect, getNavbarForumHref } from "@/src/lib/forum-entry";
+import { getDefaultPostLoginRedirect, getForumEntryUrl, getNavbarForumHref } from "@/src/lib/forum-entry";
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -74,6 +74,8 @@ const Navbar = () => {
 };
 
 const Hero = () => {
+  const forumHref = getForumEntryUrl();
+
   return (
     <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
       {/* Background Gradients */}
@@ -105,12 +107,12 @@ const Hero = () => {
           </p>
 
           <div className="flex flex-wrap gap-4">
-            <button className="group relative px-8 py-4 bg-[#f27d26] text-black font-black uppercase tracking-widest overflow-hidden transition-all hover:scale-105 active:scale-95">
+            <Link href={forumHref} className="group relative px-8 py-4 bg-[#f27d26] text-black font-black uppercase tracking-widest overflow-hidden transition-all hover:scale-105 active:scale-95">
               <span className="relative z-10 flex items-center gap-2">
                 开始体验 <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </span>
               <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-            </button>
+            </Link>
             
             <button className="px-8 py-4 border border-white/20 hover:border-white/50 transition-colors font-black uppercase tracking-widest flex items-center gap-2">
               <Play className="w-5 h-5 fill-white" /> 观看预告
@@ -308,6 +310,8 @@ const ScreenshotsSection = () => {
 };
 
 const CTA = () => {
+  const forumHref = getForumEntryUrl();
+
   return (
     <section className="py-24 px-6 relative overflow-hidden">
       <div className="absolute inset-0 bg-[#f27d26] translate-y-[80%] skew-y-[-5deg] opacity-20" />
@@ -320,9 +324,9 @@ const CTA = () => {
           加入全球增长最快的游戏讨论社区。您的小队在等着您。
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-          <button className="w-full sm:w-auto px-12 py-5 bg-white text-black font-black uppercase tracking-[0.2em] hover:bg-[#f27d26] hover:text-white transition-all">
+          <Link href={forumHref} className="w-full sm:w-auto px-12 py-5 bg-white text-black font-black uppercase tracking-[0.2em] hover:bg-[#f27d26] hover:text-white transition-all text-center">
             加入 Nexus
-          </button>
+          </Link>
           <button className="w-full sm:w-auto px-12 py-5 border border-white/20 font-black uppercase tracking-[0.2em] hover:bg-white/5 transition-all">
             了解更多
           </button>
