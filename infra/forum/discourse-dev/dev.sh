@@ -16,6 +16,8 @@ Commands:
   pull    Pull local Discourse dev images
   up      Start local Discourse dev stack
   check   Check local Discourse HTTP readiness
+  configure-local-sso
+          Configure local Discourse for GameMulti DiscourseConnect
   host    Print the resolved Discourse hostname
   logs    Tail local Discourse logs
   ps      Show local Discourse compose status
@@ -167,6 +169,72 @@ check_http() {
   return 1
 }
 
+configure_local_sso() {
+  require_env
+  render_resolved_env
+  set -a
+  # shellcheck disable=SC1090
+  source "$RESOLVED_ENV_FILE"
+  set +a
+
+  local sso_return_url=${FORUM_SSO_RETURN_URL:-http://127.0.0.1:8080/forums/discourse-connect}
+  local sso_secret=${FORUM_SSO_SECRET:-local-dev-forum-sso-secret}
+  local admin_email=${DISCOURSE_LOCAL_ADMIN_EMAIL:-${DISCOURSE_DEVELOPER_EMAILS%%,*}}
+  local site_name=${DISCOURSE_LOCAL_SITE_NAME:-GameMulti Local Forum}
+
+  if [[ -z "$admin_email" ]]; then
+    echo "DISCOURSE_DEVELOPER_EMAILS or DISCOURSE_LOCAL_ADMIN_EMAIL is required" >&2
+    return 1
+  fi
+
+  compose exec -T \
+    -e GM_FORUM_SSO_RETURN_URL="$sso_return_url" \
+    -e GM_FORUM_SSO_SECRET="$sso_secret" \
+    -e GM_DISCOURSE_ADMIN_EMAIL="$admin_email" \
+    -e GM_DISCOURSE_SITE_NAME="$site_name" \
+    discourse bash -lc 'cd /var/www/discourse && bundle exec rails runner -' <<'RUBY'
+settings = {
+  enable_discourse_connect: true,
+  discourse_connect_url: ENV.fetch("GM_FORUM_SSO_RETURN_URL"),
+  discourse_connect_secret: ENV.fetch("GM_FORUM_SSO_SECRET"),
+  discourse_connect_csrf_protection: false,
+  force_https: false,
+  wizard_enabled: false,
+  bypass_wizard_check: true,
+  external_system_avatars_url: "",
+  external_system_avatars_enabled: false,
+  gravatar_enabled: false,
+  title: ENV.fetch("GM_DISCOURSE_SITE_NAME"),
+}
+
+settings.each do |key, value|
+  SiteSetting.public_send("#{key}=", value)
+end
+
+admin_email = ENV.fetch("GM_DISCOURSE_ADMIN_EMAIL")
+user = User.find_by_email(admin_email)
+if user
+  user.active = true if user.respond_to?(:active=)
+  user.approved = true if user.respond_to?(:approved=)
+  user.admin = true if user.respond_to?(:admin=)
+  user.moderator = true if user.respond_to?(:moderator=)
+  user.trust_level = TrustLevel[4] if defined?(TrustLevel) && user.respond_to?(:trust_level=)
+  user.save!
+  user.email_tokens.update_all(confirmed: true) if user.respond_to?(:email_tokens)
+end
+
+Jobs.enqueue(:ensure_db_consistency) if defined?(Jobs)
+
+puts({
+  ok: true,
+  discourse_connect_enabled: SiteSetting.enable_discourse_connect,
+  discourse_connect_url: SiteSetting.discourse_connect_url,
+  admin_email: admin_email,
+  admin_user_found: !user.nil?,
+}.to_json)
+RUBY
+}
+
 command_name=${1:-}
 case "$command_name" in
   pull)
@@ -183,6 +251,10 @@ case "$command_name" in
   check)
     require_docker
     check_http
+    ;;
+  configure-local-sso)
+    require_docker
+    configure_local_sso
     ;;
   logs)
     require_docker

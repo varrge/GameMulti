@@ -31,6 +31,7 @@ NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 docker compose --env-file infra/compose/.env -f infra/compose/docker-compose.yml ps
 bash infra/forum/discourse-dev/dev.sh ps
 bash infra/forum/discourse-dev/dev.sh check
+bash infra/forum/discourse-dev/dev.sh configure-local-sso
 npm run check:local-discourse
 ```
 
@@ -50,6 +51,27 @@ npm run check:local-discourse
 这时不能算真实浏览器 SSO 已完成。
 
 ## Discourse 首次初始化
+
+本地开发环境优先使用脚本配置 DiscourseConnect：
+
+```bash
+bash infra/forum/discourse-dev/dev.sh configure-local-sso
+```
+
+这个命令会启用 DiscourseConnect、写入 `FORUM_SSO_RETURN_URL` 和
+`FORUM_SSO_SECRET`、关闭本地 HTTPS 强制、关闭外部头像 CDN，并在管理员用户已存在时
+把 `DISCOURSE_LOCAL_ADMIN_EMAIL` 或 `DISCOURSE_DEVELOPER_EMAILS` 的第一个邮箱提升为
+管理员。
+
+如果脚本输出 `admin_user_found: false`，说明管理员用户还没创建。打开：
+
+```text
+http://localhost
+```
+
+先完成管理员注册，再重新执行 `configure-local-sso`。
+
+手工路径仍可用：
 
 打开：
 

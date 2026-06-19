@@ -11,6 +11,7 @@ cp infra/forum/discourse-dev/.env.example infra/forum/discourse-dev/.env
 bash infra/forum/discourse-dev/dev.sh pull
 bash infra/forum/discourse-dev/dev.sh host
 bash infra/forum/discourse-dev/dev.sh up
+bash infra/forum/discourse-dev/dev.sh configure-local-sso
 bash infra/forum/discourse-dev/dev.sh check
 npm run check:local-discourse
 ```
@@ -52,3 +53,26 @@ Do not deploy a new forum setup to a server until this local stack can:
 
 The local `.env` file is ignored and may contain real SMTP credentials. Never
 commit it or paste its secret values into docs.
+
+## Local SSO Bootstrap
+
+After Discourse starts, run:
+
+```bash
+bash infra/forum/discourse-dev/dev.sh configure-local-sso
+```
+
+The command configures the local Discourse container for GameMulti:
+
+- enables DiscourseConnect,
+- sets the DiscourseConnect URL to `FORUM_SSO_RETURN_URL`,
+- sets the shared secret from `FORUM_SSO_SECRET`,
+- disables HTTPS forcing and the first-run wizard for local validation,
+- disables external avatar fetching so local letter avatars do not depend on
+  Discourse CDN URLs,
+- promotes the local admin email if that user already exists.
+
+For local browser validation, keep `FORUM_SSO_SECRET` aligned with
+`infra/compose/.env`. The command does not create a missing admin user; if the
+admin account does not exist yet, create it through the Discourse browser flow
+and run the command again.
