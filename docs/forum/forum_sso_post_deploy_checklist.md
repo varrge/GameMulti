@@ -2,7 +2,8 @@
 
 > 当前真实代码使用 `FORUM_ORIGIN`、`FORUM_ENTRY_PATH`、
 > `FORUM_SSO_SECRET`、`FORUM_SSO_RETURN_URL`，并通过
-> `/api/forum/sso/start` 发起、`/api/forum/sso/callback` 回调。
+> `/api/forum/sso/start` 进入 Discourse `/session/sso`，
+> 再由 `/forums/discourse-connect` 处理中转授权。
 > 生产部署以 `docs/deployment/discourse_production_runbook.md` 为准。
 > 本文件保留为通用检查清单，旧变量名只作为历史 bridge 模板参考。
 
@@ -27,8 +28,8 @@ APP_BASE_URL=https://app.example.com
 API_BASE_URL=https://api.example.com
 FORUM_BASE_URL=https://forum.example.com
 
-FORUM_SSO_LOGIN_PATH=/api/forum/sso/login
-FORUM_SSO_CALLBACK_PATH=/api/forum/sso/callback
+FORUM_SSO_LOGIN_PATH=/api/forum/sso/start
+FORUM_SSO_CALLBACK_PATH=/forums/discourse-connect
 FORUM_SSO_HEALTH_PATH=/api/forum/sso/health
 FORUM_SSO_CONSUME_PATH=/session/sso_login
 FORUM_SSO_LOGIN_REDIRECT_PATH=/
@@ -44,8 +45,8 @@ FORUM_SSO_ENABLE_DEBUG=false
 
 | 用途 | 默认值 | 说明 |
 | --- | --- | --- |
-| 主站发起登录入口 | `/api/forum/sso/login` | 主站为已登录用户生成论坛登录跳转 |
-| 主站回调入口 | `/api/forum/sso/callback` | 论坛登录后回跳主站 |
+| 主站发起登录入口 | `/api/forum/sso/start` | 主站为已登录用户进入 Discourse `/session/sso` |
+| 主站中转授权入口 | `/forums/discourse-connect` | Discourse 带 `sso/sig` 回到主站，主站再签名跳回论坛 |
 | 主站健康检查 | `/api/forum/sso/health` | 只做配置与依赖自检 |
 | 论坛 consume path | `/session/sso_login` | Discourse 常见默认入口 |
 | 登录后默认落点 | `/` | 可按业务改成 `/latest` 等 |
@@ -103,8 +104,8 @@ PY
 
 以下项建议保持模板默认值，除非业务确实变更：
 
-- `FORUM_SSO_LOGIN_PATH=/api/forum/sso/login`
-- `FORUM_SSO_CALLBACK_PATH=/api/forum/sso/callback`
+- `FORUM_SSO_LOGIN_PATH=/api/forum/sso/start`
+- `FORUM_SSO_CALLBACK_PATH=/forums/discourse-connect`
 - `FORUM_SSO_HEALTH_PATH=/api/forum/sso/health`
 - `FORUM_SSO_CONSUME_PATH=/session/sso_login`
 - `FORUM_SSO_EXTERNAL_UID_FIELD=external_id`
@@ -144,7 +145,7 @@ PY
 此阶段额外要求：
 1. 论坛已完成管理员初始化
 2. 论坛后台已录入 shared secret 与相关 SSO 配置
-3. 主站 `/api/forum/sso/login`、`/api/forum/sso/callback` 能对外访问
+3. 主站 `/api/forum/sso/start`、`/forums/discourse-connect` 能对外访问
 4. 如验收要求含建号/同步，adapter 不再是 stub
 
 ---
@@ -176,8 +177,8 @@ curl -I "$FORUM_BASE_URL"
 
 ### 4.3 主站 SSO 路由可用性
 
-- [ ] `/api/forum/sso/login` 已部署并能命中正确服务
-- [ ] `/api/forum/sso/callback` 已部署并能命中正确服务
+- [ ] `/api/forum/sso/start` 已部署并能命中正确服务
+- [ ] `/forums/discourse-connect` 已部署并能命中正确服务
 - [ ] `/api/forum/sso/health` 可返回配置/依赖检查结果
 - [ ] 非生产环境如开启 debug，生产需确认 debug 关闭
 
@@ -271,7 +272,7 @@ curl -I "$FORUM_BASE_URL"
 ## 8. 一页式最小执行清单
 
 ### 部署前默认保留
-- [ ] 默认路径保持 `/api/forum/sso/login`、`/api/forum/sso/callback`、`/session/sso_login`
+- [ ] 默认路径保持 `/api/forum/sso/start`、`/forums/discourse-connect`、`/session/sso`、`/session/sso_login`
 - [ ] 模板变量名保持统一
 - [ ] 只回填真实域名与最少密钥
 

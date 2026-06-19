@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ForumAccountSyncStatus, ForumSsoTicketStatus } from '@prisma/client';
-import { randomBytes } from 'node:crypto';
 import { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -34,39 +33,107 @@ export class ForumService {
 
   async startSso(params: { userId: string; returnPath?: string; request?: Request }) {
     const account = await this.getOrCreateForumAccount(params.userId);
-    const expiresAt = new Date(Date.now() + TICKET_TTL_SECONDS * 1000);
-    const ticketValue = randomBytes(24).toString('hex');
-
-    const ticket = await this.prisma.forumSsoTicket.create({
-      data: {
-        userId: params.userId,
-        forumAccountId: account.id,
-        forumProvider: this.provider,
-        ticket: ticketValue,
-        redirectUrl: params.returnPath || this.forumEntryPath,
-        expiresAt,
-        requestIp: params.request?.ip,
-        requestUserAgent: this.requestUserAgent(params.request),
-      },
-    });
-
-    const payload = encodeDiscoursePayload({
-      nonce: ticket.ticket,
-      return_sso_url: this.callbackUrl,
-    });
-    const sig = signDiscoursePayload(payload, this.ssoSecret);
-    const forumSsoUrl = new URL('/session/sso_login', this.forumOrigin);
-    forumSsoUrl.searchParams.set('sso', payload);
-    forumSsoUrl.searchParams.set('sig', sig);
+    const forumSsoUrl = new URL('/session/sso', this.forumOrigin);
+    forumSsoUrl.searchParams.set('return_path', this.safeReturnPath(params.returnPath || this.forumEntryPath));
 
     return {
       provider: this.provider,
       forumSsoUrl: forumSsoUrl.toString(),
-      ticket: ticket.ticket,
-      expiresIn: TICKET_TTL_SECONDS,
+      expiresIn: null,
       account: this.publicForumAccount(account),
-      payload,
-      sig,
+    };
+  }
+
+  async authorizeDiscourseConnect(params: {
+    userId: string;
+    sso?: string;
+    sig?: string;
+    request?: Request;
+  }) {
+    if (!params.sso || !params.sig) {
+      throw new BadRequestException('Missing DiscourseConnect payload');
+    }
+    if (!verifyDiscoursePayload(params.sso, params.sig, this.ssoSecret)) {
+      throw new UnauthorizedException('Invalid DiscourseConnect signature');
+    }
+
+    const payload = decodeDiscoursePayload(params.sso);
+    if (!payload.nonce || !payload.return_sso_url) {
+      throw new BadRequestException('DiscourseConnect payload must include nonce and return_sso_url');
+    }
+
+    const returnUrl = new URL(payload.return_sso_url);
+    if (returnUrl.origin !== new URL(this.forumOrigin).origin) {
+      throw new BadRequestException('DiscourseConnect return_sso_url does not match configured forum origin');
+    }
+
+    const account = await this.getOrCreateForumAccount(params.userId);
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: params.userId } });
+    const expiresAt = new Date(Date.now() + TICKET_TTL_SECONDS * 1000);
+
+    const updatedAccount = await this.prisma.$transaction(async (tx) => {
+      await tx.forumSsoTicket.upsert({
+        where: { ticket: payload.nonce },
+        update: {
+          userId: params.userId,
+          forumAccountId: account.id,
+          forumProvider: this.provider,
+          redirectUrl: returnUrl.toString(),
+          status: ForumSsoTicketStatus.consumed,
+          expiresAt,
+          consumedAt: new Date(),
+          requestIp: params.request?.ip,
+          requestUserAgent: this.requestUserAgent(params.request),
+        },
+        create: {
+          userId: params.userId,
+          forumAccountId: account.id,
+          forumProvider: this.provider,
+          ticket: payload.nonce,
+          redirectUrl: returnUrl.toString(),
+          status: ForumSsoTicketStatus.consumed,
+          expiresAt,
+          consumedAt: new Date(),
+          requestIp: params.request?.ip,
+          requestUserAgent: this.requestUserAgent(params.request),
+        },
+      });
+
+      return tx.forumAccount.update({
+        where: { id: account.id },
+        data: {
+          forumUserId: user.id,
+          forumUsername: user.username,
+          forumEmail: user.email,
+          externalUid: user.id,
+          syncStatus: ForumAccountSyncStatus.active,
+          mappingSource: 'discourse_connect_provider',
+          lastLoginAt: new Date(),
+          lastSyncedAt: new Date(),
+        },
+      });
+    });
+
+    const responsePayload = encodeDiscoursePayload({
+      nonce: payload.nonce,
+      external_id: user.id,
+      email: user.email,
+      username: user.username,
+      name: user.username,
+      suppress_welcome_message: 'true',
+    });
+    const responseSig = signDiscoursePayload(responsePayload, this.ssoSecret);
+    returnUrl.searchParams.set('sso', responsePayload);
+    returnUrl.searchParams.set('sig', responseSig);
+
+    return {
+      ok: true,
+      provider: this.provider,
+      redirectUrl: returnUrl.toString(),
+      account: this.publicForumAccount({
+        ...updatedAccount,
+        externalUid: updatedAccount.externalUid || user.id,
+      }),
     };
   }
 
@@ -220,6 +287,13 @@ export class ForumService {
     return new URL(path || '/', this.forumOrigin).toString();
   }
 
+  private safeReturnPath(path: string) {
+    if (!path.startsWith('/')) {
+      return this.forumEntryPath;
+    }
+    return path;
+  }
+
   private requestUserAgent(request?: Request) {
     const userAgent = request?.headers['user-agent'];
     return Array.isArray(userAgent) ? userAgent[0] : userAgent || null;
@@ -235,10 +309,6 @@ export class ForumService {
 
   private get forumEntryPath() {
     return this.config.get<string>('FORUM_ENTRY_PATH', '/');
-  }
-
-  private get callbackUrl() {
-    return this.config.get<string>('FORUM_SSO_RETURN_URL', 'http://127.0.0.1:8080/api/forum/sso/callback');
   }
 
   private get ssoSecret() {

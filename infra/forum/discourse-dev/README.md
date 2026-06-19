@@ -14,6 +14,10 @@ bash infra/forum/discourse-dev/dev.sh check
 npm run check:local-discourse
 ```
 
+The check script reports whether Discourse still needs first-run setup. A
+reachable HTTP page is not enough for server deployment; complete the browser
+SSO checklist in `docs/deployment/local_discourse_sso_validation.md` first.
+
 Default URL:
 
 ```text
@@ -34,6 +38,8 @@ Do not deploy a new forum setup to a server until this local stack can:
 - start Postgres, Redis, and Discourse,
 - return an HTTP response from the local Discourse URL,
 - return a GameMulti SSO start URL that points to local Discourse,
+- complete the local Discourse first-run wizard and enable DiscourseConnect,
+- pass a real browser jump from GameMulti `/forums` into local Discourse,
 - leave reproducible logs when it fails.
 
 The local `.env` file is ignored and may contain real SMTP credentials. Never

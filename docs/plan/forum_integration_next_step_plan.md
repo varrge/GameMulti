@@ -66,7 +66,7 @@ FORUM_PROVIDER=discourse
 FORUM_ORIGIN=https://forum.example.com
 FORUM_ENTRY_PATH=/
 FORUM_SSO_SECRET=change-me
-FORUM_SSO_RETURN_URL=http://127.0.0.1:8080/api/forum/sso/callback
+FORUM_SSO_RETURN_URL=http://127.0.0.1:8080/forums/discourse-connect
 NEXT_PUBLIC_FORUM_ORIGIN=https://forum.example.com
 NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 ```
@@ -88,14 +88,14 @@ NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 - `GET /api/forum/sso/start`
   - 发起 Discourse SSO
   - 校验当前 GameMulti 登录态
-  - 生成 nonce/ticket
-  - 跳转到 Discourse SSO URL
+  - 跳转到 Discourse `/session/sso`
 
-- `GET /api/forum/sso/callback`
-  - 接收 Discourse 回调
+- `GET /forums/discourse-connect`
+  - 接收 Discourse 带来的 `sso/sig`
+  - 调用 `/api/forum/sso/authorize`
   - 校验签名
   - 绑定或更新 `ForumAccount`
-  - 跳转回论坛或 GameMulti
+  - 跳转回 Discourse `/session/sso_login`
 
 - `GET /api/me/forum-account`
   - 前端账号页展示论坛绑定状态

@@ -28,6 +28,22 @@ export class ForumController {
     });
   }
 
+  @Get('forum/sso/authorize')
+  @UseGuards(AuthGuard)
+  authorize(
+    @CurrentUser() user: CurrentUserPayload,
+    @Req() request: Request,
+    @Query('sso') sso?: string,
+    @Query('sig') sig?: string,
+  ) {
+    return this.forumService.authorizeDiscourseConnect({
+      userId: user.id,
+      sso,
+      sig,
+      request,
+    });
+  }
+
   @Get('forum/sso/callback')
   callback(@Query('sso') sso?: string, @Query('sig') sig?: string) {
     return this.forumService.consumeCallback({ sso, sig });

@@ -170,26 +170,31 @@ async function assertForumSso(token, user) {
   assert(before?.provider === 'discourse', 'forum account status did not return discourse provider');
 
   const start = await getJson('/forum/sso/start', token);
-  assert(start?.forumSsoUrl && start?.ticket, 'forum sso start did not return url and ticket');
+  assert(start?.forumSsoUrl, 'forum sso start did not return url');
+  assert(String(start.forumSsoUrl).includes('/session/sso?'), 'forum sso start did not point to Discourse /session/sso');
+  const forumOrigin = new URL(start.forumSsoUrl).origin;
 
-  const callbackPayload = encodeForumSsoPayload({
-    nonce: start.ticket,
-    external_id: user.id,
-    username: user.username,
-    email: user.email,
-    name: user.username,
+  const discoursePayload = encodeForumSsoPayload({
+    nonce: `smoke_discourse_nonce_${runId}`,
+    return_sso_url: `${forumOrigin}/session/sso_login`,
   });
 
-  const badCallback = await fetch(`${apiBaseUrl}/forum/sso/callback?sso=${encodeURIComponent(callbackPayload)}&sig=bad`);
-  assert(badCallback.status === 401, `bad forum callback returned ${badCallback.status}, expected 401`);
+  const badAuthorize = await fetch(`${apiBaseUrl}/forum/sso/authorize?sso=${encodeURIComponent(discoursePayload)}&sig=bad`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert(badAuthorize.status === 401, `bad forum authorize returned ${badAuthorize.status}, expected 401`);
 
-  const callbackSig = signForumSsoPayload(callbackPayload, forumSsoSecret);
-  const callback = await getJson(`/forum/sso/callback?sso=${encodeURIComponent(callbackPayload)}&sig=${callbackSig}`);
-  assert(callback?.ok === true, 'forum callback did not return ok');
-  assert(callback?.account?.forumUsername === user.username, 'forum callback mapped a different username');
+  const discourseSig = signForumSsoPayload(discoursePayload, forumSsoSecret);
+  const authorize = await getJson(
+    `/forum/sso/authorize?sso=${encodeURIComponent(discoursePayload)}&sig=${discourseSig}`,
+    token,
+  );
+  assert(authorize?.ok === true, 'forum authorize did not return ok');
+  assert(authorize?.account?.forumUsername === user.username, 'forum authorize mapped a different username');
+  assert(String(authorize?.redirectUrl || '').includes('/session/sso_login?'), 'forum authorize did not return Discourse sso_login redirect');
 
   const after = await getJson('/me/forum-account', token);
-  assert(after?.connected === true, 'forum account status is not connected after callback');
+  assert(after?.connected === true, 'forum account status is not connected after authorize');
   summary.forumConnected = true;
 }
 

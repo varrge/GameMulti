@@ -239,8 +239,8 @@ infra/deploy/
   - 论坛独立域名或独立入口
 
 ### 论坛 SSO 类
-- `FORUM_SSO_LOGIN_PATH=/api/forum/sso/login`
-- `FORUM_SSO_CALLBACK_PATH=/api/forum/sso/callback`
+- `FORUM_SSO_LOGIN_PATH=/api/forum/sso/start`
+- `FORUM_SSO_CALLBACK_PATH=/forums/discourse-connect`
 - `FORUM_SSO_HEALTH_PATH=/api/forum/sso/health`
 - `FORUM_SSO_CONSUME_PATH=/session/sso_login`
 - `FORUM_SSO_EXTERNAL_UID_FIELD=external_id`

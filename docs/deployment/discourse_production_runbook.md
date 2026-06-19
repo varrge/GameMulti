@@ -6,7 +6,7 @@ GameMulti 主站/API 与 Discourse 分开部署：
 
 - GameMulti：继续由 `infra/deploy/up.sh` 启动主站、API、Postgres、Nginx。
 - Discourse：独立服务器或独立 VM，使用官方 `discourse_docker` 安装方式。
-- 登录打通：GameMulti 已登录用户访问 `/forums`，后端通过 `/api/forum/sso/start` 生成 DiscourseConnect URL，Discourse 回调 `/api/forum/sso/callback`。
+- 登录打通：GameMulti 已登录用户访问 `/forums`，后端通过 `/api/forum/sso/start` 进入 Discourse `/session/sso`，Discourse 再回到 GameMulti `/forums/discourse-connect` 完成 DiscourseConnect 授权。
 
 不建议把生产 Discourse 塞进当前 dev compose。Discourse 对 SMTP、TLS、持久化、升级和备份有独立运维要求，拆开部署更容易回滚和排障。
 
@@ -24,12 +24,15 @@ GameMulti 主站/API 与 Discourse 分开部署：
   `infra/forum/discourse-dev/dev.sh check` 和 `npm run check:local-discourse`。
   如果本地 Discourse 镜像无法拉取、容器无法启动、HTTP 检查失败或
   GameMulti 不能生成指向本地 Discourse 的 SSO URL，不进入服务器部署。
+- 已按 `docs/deployment/local_discourse_sso_validation.md` 完成本地 Discourse
+  首次初始化、DiscourseConnect 配置和真实浏览器 SSO 检查。只拿到本地
+  Discourse HTTP 200 不算验收通过。
 - 一台独立论坛服务器，推荐至少 1 GB RAM，生产建议 2 GB+。
 - 论坛域名，例如 `forum.example.com`，DNS A/AAAA 记录已指向论坛服务器。
 - 服务器开放 `80/tcp` 和 `443/tcp`。
 - 可用 SMTP。Discourse 生产环境没有可用邮件基本不可运营。
 - GameMulti 对外地址已确定，例如 `https://app.example.com`。
-- GameMulti API 回调地址可公网访问：`https://app.example.com/api/forum/sso/callback`。
+- GameMulti DiscourseConnect 地址可公网访问：`https://app.example.com/forums/discourse-connect`。
 
 ## 环境文件
 
@@ -51,7 +54,7 @@ cp infra/deploy/discourse.env.example infra/deploy/discourse.env
 | `DISCOURSE_SMTP_*` | Discourse 发信配置 | 密码是 secret |
 | `FORUM_ORIGIN` | GameMulti 后端使用的论坛根地址 | 否 |
 | `FORUM_SSO_SECRET` | DiscourseConnect shared secret | 是 |
-| `FORUM_SSO_RETURN_URL` | Discourse 回调 GameMulti 的 URL | 否 |
+| `FORUM_SSO_RETURN_URL` | DiscourseConnect URL，当前应指向 GameMulti 前端中转页 | 否 |
 | `NEXT_PUBLIC_FORUM_ORIGIN` | 前端展示/跳转用论坛地址 | 否 |
 
 生成 SSO secret：
@@ -105,20 +108,26 @@ sudo ./discourse-setup
 进入 Discourse 管理后台，配置 DiscourseConnect/SSO：
 
 - 启用 DiscourseConnect。
+- DiscourseConnect URL 填 `https://app.example.com/forums/discourse-connect`。
 - shared secret 填 `FORUM_SSO_SECRET`。
 - 确认 Discourse SSO consume path 为 `/session/sso_login`。
-- 确认 GameMulti 回调 URL 是 `FORUM_SSO_RETURN_URL`。
 
 当前 GameMulti 代码会生成：
 
 ```text
-https://forum.example.com/session/sso_login?sso=...&sig=...
+https://forum.example.com/session/sso?return_path=...
 ```
 
-回调入口：
+Discourse 再回到 GameMulti：
 
 ```text
-https://app.example.com/api/forum/sso/callback
+https://app.example.com/forums/discourse-connect?sso=...&sig=...
+```
+
+GameMulti 最后返回 Discourse：
+
+```text
+https://forum.example.com/session/sso_login?sso=...&sig=...
 ```
 
 ## GameMulti 配置
@@ -130,7 +139,7 @@ FORUM_PROVIDER=discourse
 FORUM_ORIGIN=https://forum.example.com
 FORUM_ENTRY_PATH=/
 FORUM_SSO_SECRET=replace-with-the-same-secret-as-discourse
-FORUM_SSO_RETURN_URL=https://app.example.com/api/forum/sso/callback
+FORUM_SSO_RETURN_URL=https://app.example.com/forums/discourse-connect
 NEXT_PUBLIC_FORUM_ORIGIN=https://forum.example.com
 NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 ```
@@ -161,9 +170,10 @@ npm run smoke:web-api
 
 1. 打开 `https://app.example.com/account` 并登录。
 2. 点击进入论坛或打开 `/forums`。
-3. 确认跳转到 `https://forum.example.com/session/sso_login?...`。
-4. 确认论坛完成登录并能看到对应用户。
-5. 打开 GameMulti Admin，确认论坛账号摘要有新增或激活记录。
+3. 确认先跳转到 `https://forum.example.com/session/sso?...`。
+4. 确认 Discourse 回到 `https://app.example.com/forums/discourse-connect?sso=...&sig=...`。
+5. 确认最后进入论坛并能看到对应用户。
+6. 打开 GameMulti Admin，确认论坛账号摘要有新增或激活记录。
 
 ## 备份
 
@@ -208,7 +218,7 @@ Discourse 回滚：
 
 - 优先恢复升级前备份。
 - 如果只是配置错误，先恢复 DiscourseConnect secret/callback 配置。
-- 回滚后重新验证 `/session/sso_login` 与 `/api/forum/sso/callback`。
+- 回滚后重新验证 `/session/sso`、`/forums/discourse-connect` 与 `/session/sso_login`。
 
 ## 常见故障
 
@@ -217,7 +227,7 @@ Discourse 回滚：
 | 论坛打不开 | DNS、80/443、安全组、Discourse 容器状态 |
 | 论坛停在初始化页 | 先完成管理员初始化，再测 SSO |
 | 跳转后签名错误 | `FORUM_SSO_SECRET` 两边不一致 |
-| 回调 404/502 | `FORUM_SSO_RETURN_URL`、主站反向代理、API 是否部署 |
+| 回调 404/502 | DiscourseConnect URL、主站反向代理、API 是否部署 |
 | 用户能进主站但不能进论坛 | DiscourseConnect 是否启用、consume path 是否为 `/session/sso_login` |
 | smoke 通过但真实论坛失败 | smoke 只验证协议级流程，需要再做浏览器真实跳转 |
 

@@ -126,11 +126,15 @@ export type ForumAccountStatus = {
 export type ForumSsoStart = {
   provider: string;
   forumSsoUrl: string;
-  ticket: string;
-  expiresIn: number;
+  expiresIn: number | null;
   account: ForumAccount;
-  payload: string;
-  sig: string;
+};
+
+export type ForumSsoAuthorize = {
+  ok: boolean;
+  provider: string;
+  redirectUrl: string;
+  account: ForumAccount;
 };
 
 export type AdminForumSummary = {
@@ -318,6 +322,12 @@ export const api = {
 
   startForumSso(returnPath = "/") {
     return request<ForumSsoStart>(`/forum/sso/start?returnPath=${encodeURIComponent(returnPath)}`);
+  },
+
+  authorizeForumSso(sso: string, sig: string) {
+    return request<ForumSsoAuthorize>(
+      `/forum/sso/authorize?sso=${encodeURIComponent(sso)}&sig=${encodeURIComponent(sig)}`,
+    );
   },
 
   adminListGameServers(adminKey: string) {

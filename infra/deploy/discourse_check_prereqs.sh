@@ -100,8 +100,8 @@ if [[ ${FORUM_ORIGIN:-} != "https://${DISCOURSE_HOSTNAME:-}" ]]; then
   warn "FORUM_ORIGIN does not match https://DISCOURSE_HOSTNAME"
 fi
 
-if [[ ${FORUM_SSO_RETURN_URL:-} != "${GAME_API_ORIGIN:-}/api/forum/sso/callback" ]]; then
-  warn "FORUM_SSO_RETURN_URL is not GAME_API_ORIGIN + /api/forum/sso/callback"
+if [[ ${FORUM_SSO_RETURN_URL:-} != "${GAME_PUBLIC_ORIGIN:-}/forums/discourse-connect" ]]; then
+  warn "FORUM_SSO_RETURN_URL is not GAME_PUBLIC_ORIGIN + /forums/discourse-connect"
 fi
 
 note "==> Checking DNS resolution"
