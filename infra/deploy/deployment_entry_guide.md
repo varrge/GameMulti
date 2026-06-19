@@ -283,7 +283,7 @@ python3 generate_deploy_secrets.py --app-name myapp > .env.generated
 
 | 类别 | 变量 |
 | --- | --- |
-| 域名 / 地址 | `PUBLIC_BASE_URL`、`APP_BASE_URL`、`API_BASE_URL`、`FORUM_BASE_URL`、`SERVER_PUBLIC_IP` |
+| 域名 / 地址 | `PUBLIC_BASE_URL`、`APP_BASE_URL`、`API_BASE_URL`、`FORUM_ORIGIN`、`NEXT_PUBLIC_FORUM_ORIGIN`、`SERVER_PUBLIC_IP` |
 | SSH / 部署目标 | `DEPLOY_SSH_HOST`、`DEPLOY_SSH_PORT`、`DEPLOY_SSH_USER`、`DEPLOY_TARGET_DIR` |
 | 邮件 | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASSWORD`、`SMTP_FROM` |
 | 数据连接 | `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`REDIS_HOST`、`REDIS_PORT` |

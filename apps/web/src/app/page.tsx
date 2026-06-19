@@ -17,13 +17,12 @@ import {
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { cn } from "@/src/lib/utils";
-import { getDefaultPostLoginRedirect, getForumEntryUrl, getNavbarForumHref } from "@/src/lib/forum-entry";
+import { getNavbarForumHref } from "@/src/lib/forum-entry";
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const forumHref = getNavbarForumHref();
-  const loginRedirect = getDefaultPostLoginRedirect();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -47,11 +46,12 @@ const Navbar = () => {
         <div className="hidden md:flex items-center gap-8 text-sm font-medium uppercase tracking-widest text-white/70">
           <Link href="/" className="hover:text-[#f27d26] transition-colors">主页</Link>
           <Link href={forumHref} className="hover:text-[#f27d26] transition-colors">论坛</Link>
+          <Link href="/bindings" className="hover:text-[#f27d26] transition-colors">绑定</Link>
         </div>
 
         <div className="hidden md:flex items-center gap-4">
-          <Link href={loginRedirect} className="px-4 py-2 text-sm font-bold uppercase tracking-widest hover:text-[#f27d26] transition-colors">登录</Link>
-          <Link href={forumHref} className="px-6 py-2 bg-white text-black text-sm font-bold uppercase tracking-widest hover:bg-[#f27d26] hover:text-white transition-all rounded-sm">立即加入</Link>
+          <Link href="/account" className="px-4 py-2 text-sm font-bold uppercase tracking-widest hover:text-[#f27d26] transition-colors">登录</Link>
+          <Link href="/account" className="px-6 py-2 bg-white text-black text-sm font-bold uppercase tracking-widest hover:bg-[#f27d26] hover:text-white transition-all rounded-sm">立即加入</Link>
         </div>
 
         <button className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -64,9 +64,10 @@ const Navbar = () => {
         <div className="absolute top-full left-0 right-0 bg-black border-b border-white/10 p-6 flex flex-col gap-4 md:hidden animate-in fade-in slide-in-from-top-4">
           <Link href="/" className="text-lg font-bold uppercase tracking-widest">主页</Link>
           <Link href={forumHref} className="text-lg font-bold uppercase tracking-widest">论坛</Link>
+          <Link href="/bindings" className="text-lg font-bold uppercase tracking-widest">绑定</Link>
           <hr className="border-white/10" />
-          <Link href={loginRedirect} className="w-full py-3 text-white font-bold uppercase tracking-widest text-left">登录</Link>
-          <Link href={forumHref} className="w-full py-3 bg-white text-black font-bold uppercase tracking-widest">立即加入</Link>
+          <Link href="/account" className="w-full py-3 text-white font-bold uppercase tracking-widest text-left">登录</Link>
+          <Link href="/account" className="w-full py-3 bg-white text-black font-bold uppercase tracking-widest">立即加入</Link>
         </div>
       )}
     </nav>
@@ -74,8 +75,6 @@ const Navbar = () => {
 };
 
 const Hero = () => {
-  const forumHref = getForumEntryUrl();
-
   return (
     <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
       {/* Background Gradients */}
@@ -107,7 +106,7 @@ const Hero = () => {
           </p>
 
           <div className="flex flex-wrap gap-4">
-            <Link href={forumHref} className="group relative px-8 py-4 bg-[#f27d26] text-black font-black uppercase tracking-widest overflow-hidden transition-all hover:scale-105 active:scale-95">
+            <Link href="/account" className="group relative px-8 py-4 bg-[#f27d26] text-black font-black uppercase tracking-widest overflow-hidden transition-all hover:scale-105 active:scale-95">
               <span className="relative z-10 flex items-center gap-2">
                 开始体验 <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </span>
@@ -310,8 +309,6 @@ const ScreenshotsSection = () => {
 };
 
 const CTA = () => {
-  const forumHref = getForumEntryUrl();
-
   return (
     <section className="py-24 px-6 relative overflow-hidden">
       <div className="absolute inset-0 bg-[#f27d26] translate-y-[80%] skew-y-[-5deg] opacity-20" />
@@ -324,7 +321,7 @@ const CTA = () => {
           加入全球增长最快的游戏讨论社区。您的小队在等着您。
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-          <Link href={forumHref} className="w-full sm:w-auto px-12 py-5 bg-white text-black font-black uppercase tracking-[0.2em] hover:bg-[#f27d26] hover:text-white transition-all text-center">
+          <Link href="/account" className="w-full sm:w-auto px-12 py-5 bg-white text-black font-black uppercase tracking-[0.2em] hover:bg-[#f27d26] hover:text-white transition-all text-center">
             加入 Nexus
           </Link>
           <button className="w-full sm:w-auto px-12 py-5 border border-white/20 font-black uppercase tracking-[0.2em] hover:bg-white/5 transition-all">

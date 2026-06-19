@@ -87,28 +87,43 @@ bash infra/deploy/up.sh
 ```env
 APP_NAME=gamemulti
 NODE_ENV=development
+APP_SECRET=replace-with-a-long-random-secret
 WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web
 WEB_PORT=3301
-FORUM_BASE_URL=http://192.168.110.218:3000
+API_URL=http://localhost:8080/api
+NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_FORUM_ORIGIN=https://bbs.example.com
+NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 HOST_HTTP_PORT=8080
 ```
 
 ### 默认支持范围
 
-- 默认启动 `web + nginx`
-- `postgres`、`redis` 为可选 profile，默认不启动
+- 默认启动 `web + api + postgres + nginx`
+- `redis` 为可选 `queue` profile，默认不启动
 - 适用于本地开发/验收环境的一键拉起与复核
+- 主站新增 `/account`、`/bindings`、`/bind/confirm?token=...`，用于邀请码注册、登录与游戏账号绑定确认
+
+### 自测命令
+
+Compose 服务启动并 healthy 后，可在仓库根目录执行：
+
+```bash
+npm run smoke:web-api
+```
+
+默认检查 `http://127.0.0.1:8080` 下的首页、账号页、绑定页、API 健康检查，并跑通邀请码注册、登录、插件绑定会话、玩家确认绑定、账号绑定列表闭环。
 
 ### 手工回填项
 
 - `WEB_SOURCE_DIR`：改成目标机器上的真实源码目录
 - `HOST_HTTP_PORT`：如 8080 被占用，改成空闲端口
-- `FORUM_BASE_URL`：改成实际论坛入口
-- 如需数据库/缓存：补齐 `POSTGRES_*` 并按需启用 `data` profile
+- `NEXT_PUBLIC_FORUM_ORIGIN` / `FORUM_ORIGIN`：改成实际论坛入口
+- 如需缓存/队列：补齐 `REDIS_URL` 并按需启用 `queue` profile
 
 ### 已知限制
 
-- 当前 `web` 服务以开发模式启动，首次 `npm install` 较慢
+- 当前 `web` / `api` 服务以开发模式启动，首次 `npm install` 较慢
 - 当前默认不覆盖生产构建、HTTPS 证书、systemd 托管和论坛并入同一入口脚本
 - 如果宿主机已有其他服务占用 `HOST_HTTP_PORT`，HTTP 复核可能受宿主机级代理或端口转发影响
 
@@ -122,12 +137,12 @@ docker compose --env-file .env -f docker-compose.yml down
 查看日志：
 
 ```bash
-docker compose --env-file .env -f docker-compose.yml logs --tail=200 web nginx
+docker compose --env-file .env -f docker-compose.yml logs --tail=200 web api nginx postgres
 ```
 
 排障重点：
 - 先看 `docker compose ps` 是否 healthy
-- 再看 `docker logs gamemulti-web --tail 200` 与 `docker logs gamemulti-nginx --tail 100`
+- 再看 `docker logs gamemulti-web --tail 200`、`docker logs gamemulti-api --tail 200` 与 `docker logs gamemulti-nginx --tail 100`
 - 若容器内正常但宿主机访问异常，优先检查 `HOST_HTTP_PORT` 占用与宿主机转发链路
 
 ### 详细文档与现场验证记录

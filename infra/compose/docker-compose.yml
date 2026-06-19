@@ -1,6 +1,6 @@
 services:
   web:
-    image: node:22-bookworm
+    image: node:22-alpine
     container_name: ${APP_NAME:-gamemulti}-web
     working_dir: /app
     command: >-
@@ -8,7 +8,11 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: ${WEB_PORT:-3301}
-      FORUM_BASE_URL: ${FORUM_BASE_URL:-http://192.168.110.218:3000}
+      WEB_PORT: ${WEB_PORT:-3301}
+      NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api}
+      NEXT_PUBLIC_FORUM_ORIGIN: ${NEXT_PUBLIC_FORUM_ORIGIN:-https://bbs.example.com}
+      NEXT_PUBLIC_FORUM_ENTRY_PATH: ${NEXT_PUBLIC_FORUM_ENTRY_PATH:-/}
       HOSTNAME: 0.0.0.0
     volumes:
       - ${WEB_SOURCE_DIR}:/app
@@ -25,11 +29,47 @@ services:
     networks:
       - app_net
 
+  api:
+    image: node:22-alpine
+    container_name: ${APP_NAME:-gamemulti}-api
+    working_dir: /app
+    command: >-
+      sh -lc "npm install && npx prisma generate && npx prisma db push && npm run prisma:seed && npm run start:dev"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${API_PORT:-3401}
+      API_PORT: ${API_PORT:-3401}
+      NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
+      APP_SECRET: ${APP_SECRET:-replace-with-a-long-random-secret}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://gamemulti:changeme@postgres:5432/gamemulti?schema=public}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      API_URL: ${API_URL:-http://localhost:8080/api}
+      FORUM_ORIGIN: ${FORUM_ORIGIN:-https://bbs.example.com}
+      FORUM_ENTRY_PATH: ${FORUM_ENTRY_PATH:-/}
+    volumes:
+      - ../../apps/api:/app
+      - api_node_modules:/app/node_modules
+    expose:
+      - "${API_PORT:-3401}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:' + (process.env.PORT || 3401) + '/api/healthz').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app_net
+
   nginx:
     image: nginx:1.27-alpine
     container_name: ${APP_NAME:-gamemulti}-nginx
     depends_on:
       web:
+        condition: service_healthy
+      api:
         condition: service_healthy
     ports:
       - "${HOST_HTTP_PORT:-8080}:80"
@@ -47,7 +87,6 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: ${APP_NAME:-gamemulti}-postgres
-    profiles: ["data"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-gamemulti}
       POSTGRES_USER: ${POSTGRES_USER:-gamemulti}
@@ -66,7 +105,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: ${APP_NAME:-gamemulti}-redis
-    profiles: ["data"]
+    profiles: ["queue"]
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
@@ -86,5 +125,6 @@ networks:
 volumes:
   web_node_modules:
   web_next:
+  api_node_modules:
   postgres_data:
   redis_data:

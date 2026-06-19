@@ -22,7 +22,10 @@ APP_NAME=gamemulti
 NODE_ENV=development
 WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web
 WEB_PORT=3301
-FORUM_BASE_URL=http://192.168.110.218:3000
+API_URL=http://localhost:8080/api
+NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_FORUM_ORIGIN=https://bbs.example.com
+NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 HOST_HTTP_PORT=8080
 ```
 
@@ -31,8 +34,10 @@ HOST_HTTP_PORT=8080
 - 使用 `infra/compose/docker-compose.yml`
 - 默认以 `APP_NAME` 作为 compose project 名（默认 `gamemulti`）
 - 启动前会检查是否存在来自其他工作区的同名旧容器；若检测到，会先清理旧的 `gamemulti-web`、`gamemulti-nginx` 与对应网络，避免 reviewer 在真实仓库复核时撞上历史残留
-- 通过 `docker compose up -d --remove-orphans` 拉起 `web` 和 `nginx`
-- `postgres`、`redis` 作为可选 profile，默认不启动
+- 通过 `docker compose up -d --remove-orphans` 拉起 `web`、`api`、`postgres` 和 `nginx`
+- `redis` 作为可选 `queue` profile，默认不启动
+- 浏览器端 API 默认走同源 `/api`，由 nginx 转发到 `api:3401`
+- 玩家账号与绑定页面为 `/account`、`/bindings`、`/bind/confirm?token=...`
 - 启动后输出 `docker compose ps`
 
 ## 失败退出条件
@@ -59,9 +64,9 @@ curl -I http://127.0.0.1:${HOST_HTTP_PORT:-8080}/
 
 ## 已知限制
 
-- 当前 `web` 服务以开发模式启动，首次 `npm install` 会比正式镜像慢
+- 当前 `web` / `api` 服务以开发模式启动，首次 `npm install` 会比正式镜像慢
 - 如果宿主机已有其他服务占用 `HOST_HTTP_PORT`，外部 HTTP 校验可能被宿主机级代理或端口转发干扰
-- 如需数据库与缓存，需手动加 `--profile data`
+- 如需队列/缓存，需手动加 `--profile queue`
 
 ## 回滚与排障
 
@@ -75,11 +80,11 @@ docker compose --env-file .env -f docker-compose.yml down
 查看日志：
 
 ```bash
-docker compose --env-file .env -f docker-compose.yml logs --tail=200 web nginx
+docker compose --env-file .env -f docker-compose.yml logs --tail=200 web api postgres nginx
 ```
 
 排障重点：
 
 - 先看 `docker compose ps` 是否 healthy
-- 再看容器内 `web` 是否已监听 `3301`
+- 再看容器内 `web` 是否已监听 `3301`、`api` 是否已通过 `/api/healthz`
 - 若容器内正常、宿主机仍返回 502，优先排查宿主机 `8080` 监听归属或改用未占用端口重试

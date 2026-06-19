@@ -5,7 +5,7 @@
 - 部署入口：`infra/deploy/up.sh`
 - Compose 文件：`infra/compose/docker-compose.yml`
 - Nginx 配置：`infra/nginx/default.conf`
-- 默认目标：本地开发/验收环境，启动 `web + nginx`；如需 `postgres/redis`，可额外启用 `data` profile。
+- 默认目标：本地开发/验收环境，启动 `web + api + postgres + nginx`；如需 Redis，可额外启用 `queue` profile。
 
 ## 前置条件
 1. 已安装 `docker` 与 `docker compose`
@@ -20,7 +20,10 @@ NODE_ENV=development
 WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web
 WEB_PORT=3301
 HOST_HTTP_PORT=8080
-FORUM_BASE_URL=http://192.168.110.218:3000
+API_URL=http://localhost:8080/api
+NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_FORUM_ORIGIN=https://bbs.example.com
+NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 ```
 
 ## 一键启动命令
@@ -52,8 +55,10 @@ WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web \
 关键结果：
 
 ```text
-Container gamemulti-web    Started
-Container gamemulti-nginx  Started
+Container gamemulti-postgres  Started
+Container gamemulti-api       Started
+Container gamemulti-web       Started
+Container gamemulti-nginx     Started
 ```
 
 ### 2. docker compose ps
@@ -68,9 +73,11 @@ WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web \
 关键结果：
 
 ```text
-NAME              IMAGE               STATUS                    PORTS
-gamemulti-web     node:22-bookworm    Up (healthy)             3301/tcp
-gamemulti-nginx   nginx:1.27-alpine   Up (healthy)             0.0.0.0:8080->80/tcp
+NAME                  IMAGE               STATUS                    PORTS
+gamemulti-postgres    postgres:16-alpine  Up (healthy)             5432/tcp
+gamemulti-api         node:22-alpine      Up (healthy)             3401/tcp
+gamemulti-web         node:22-alpine      Up (healthy)             3301/tcp
+gamemulti-nginx       nginx:1.27-alpine   Up (healthy)             0.0.0.0:8080->80/tcp
 ```
 
 ### 3. HTTP 可达检查
@@ -86,18 +93,39 @@ curl -I http://127.0.0.1:8080/
 HTTP/1.1 200 OK
 ```
 
+### 4. 主站账号与绑定入口
+建议继续检查以下页面是否返回 200：
+
+```bash
+curl -I http://127.0.0.1:8080/account
+curl -I http://127.0.0.1:8080/bindings
+curl -I 'http://127.0.0.1:8080/bind/confirm?token=demo'
+curl -I http://127.0.0.1:8080/api/healthz
+```
+
+也可以在仓库根目录执行完整 smoke test：
+
+```bash
+npm run smoke:web-api
+```
+
+该命令会检查页面 200、API health、邀请码创建与校验、注册登录、插件签名创建绑定会话、token/pair code 查询、确认绑定和账号绑定列表。
+
 ## 手工回填项
 正式部署前，至少确认以下变量：
 - `WEB_SOURCE_DIR`：必须改成目标机器上真实的 `apps/web` 路径
 - `HOST_HTTP_PORT`：如 8080 被占用，需要改成空闲端口
-- `FORUM_BASE_URL`：改成真实论坛入口
-- 如启用数据库/缓存：补齐 `POSTGRES_*` 与 Redis 持久化规划
+- `NEXT_PUBLIC_FORUM_ORIGIN` / `FORUM_ORIGIN`：改成真实论坛入口
+- 如启用队列/缓存：补齐 `REDIS_URL` 与 Redis 持久化规划
 
 ## 默认支持范围
 当前默认覆盖：
 - 以 `apps/web` 为前端源码目录启动 Next.js 开发服务
+- 以 `apps/api` 为后端源码目录启动 NestJS 开发服务
+- 默认启动 PostgreSQL 并执行 Prisma `db push` 与 seed
 - 由 Nginx 暴露统一 HTTP 入口
-- 可选启用 `postgres/redis` profile 做本地配套依赖
+- 浏览器端 API 默认使用同源 `/api`，避免远程访问时误指向访问者本机 localhost
+- 可选启用 `redis` queue profile 做本地配套依赖
 
 当前**未**默认覆盖：
 - 生产构建与静态化发布

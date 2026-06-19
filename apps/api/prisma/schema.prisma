@@ -1,0 +1,334 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  active
+  disabled
+  banned
+}
+
+enum AuthProvider {
+  password
+  steam
+  discord
+}
+
+enum InvitationCodeStatus {
+  active
+  disabled
+  expired
+  exhausted
+}
+
+enum BindingSessionStatus {
+  pending
+  confirmed
+  expired
+  cancelled
+}
+
+enum UserGameBindingStatus {
+  active
+  unbinding
+  unbound
+  blocked
+}
+
+enum ForumAccountSyncStatus {
+  pending_initial_sync
+  active
+  syncing
+  sync_failed
+  disabled
+}
+
+enum ForumSsoTicketStatus {
+  issued
+  consumed
+  expired
+  cancelled
+}
+
+model User {
+  id                  String     @id @default(cuid())
+  username            String     @unique
+  email               String     @unique
+  passwordHash        String?
+  status              UserStatus @default(active)
+  source              String     @default("invite_register")
+  invitedByUserId     String?
+  invitationCodeId    String?
+  registerIp          String?
+  registerUserAgent   String?
+  lastLoginAt         DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  invitedBy           User?      @relation("UserInvites", fields: [invitedByUserId], references: [id])
+  invitees            User[]     @relation("UserInvites")
+  invitationCode      InvitationCode? @relation(fields: [invitationCodeId], references: [id])
+  authAccounts        UserAuthAccount[]
+  invitationUsages    InvitationCodeUsage[]
+  gameBindings        UserGameBinding[]
+  usedBindingSessions BindingSession[] @relation("BindingSessionUsedByUser")
+  forumAccounts       ForumAccount[]
+  forumTickets        ForumSsoTicket[]
+  auditLogs           AuditLog[] @relation("AuditActor")
+
+  @@index([status, createdAt])
+  @@index([invitedByUserId])
+}
+
+model UserAuthAccount {
+  id                String       @id @default(cuid())
+  userId            String
+  provider          AuthProvider
+  providerAccountId String
+  passwordHash      String?
+  email             String?
+  meta              Json?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  user              User         @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerAccountId])
+  @@index([userId, provider])
+}
+
+model InvitationCode {
+  id          String               @id @default(cuid())
+  code        String               @unique
+  createdBy   String
+  ownerUserId String?
+  batchId     String?
+  maxUses     Int
+  usedCount   Int                  @default(0)
+  startsAt    DateTime?
+  expiresAt   DateTime?
+  status      InvitationCodeStatus @default(active)
+  remark      String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  users       User[]
+  usages      InvitationCodeUsage[]
+
+  @@index([status, expiresAt])
+  @@index([batchId])
+}
+
+model InvitationCodeUsage {
+  id               String   @id @default(cuid())
+  invitationCodeId String
+  userId           String   @unique
+  inviterUserId    String?
+  usedIp           String?
+  usedUserAgent    String?
+  usedAt           DateTime @default(now())
+
+  invitationCode   InvitationCode @relation(fields: [invitationCodeId], references: [id])
+  user             User           @relation(fields: [userId], references: [id])
+
+  @@index([invitationCodeId, usedAt])
+  @@index([inviterUserId, usedAt])
+}
+
+model Game {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  name            String
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  accounts        GameAccount[]
+  servers         GameServer[]
+  bindingSessions BindingSession[]
+}
+
+model GameServer {
+  id              String   @id @default(cuid())
+  gameId          String
+  serverCode      String   @unique
+  serverName      String
+  region          String?
+  endpointHost    String?
+  endpointPort    Int?
+  adapterType     String?
+  status          String   @default("active")
+  meta            Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  game            Game     @relation(fields: [gameId], references: [id])
+  pluginClients   ServerPluginClient[]
+  bindingSessions BindingSession[]
+  userBindings    UserGameBinding[]
+
+  @@index([gameId, status])
+}
+
+model ServerPluginClient {
+  id                String   @id @default(cuid())
+  serverId          String
+  clientKey         String   @unique
+  clientSecretHash  String
+  pluginVersion     String?
+  protocolVersion   String?
+  lastHeartbeatAt   DateTime?
+  status            String   @default("active")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  server            GameServer @relation(fields: [serverId], references: [id])
+  bindingSessions   BindingSession[]
+
+  @@index([serverId, status])
+}
+
+model GameAccount {
+  id                   String   @id @default(cuid())
+  gameId               String
+  platform             String
+  gameUserId           String
+  normalizedGameUserId String
+  displayName          String?
+  extraMeta            Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  game                 Game     @relation(fields: [gameId], references: [id])
+  userBindings         UserGameBinding[]
+
+  @@unique([gameId, platform, normalizedGameUserId])
+  @@index([gameId, platform, gameUserId])
+}
+
+model BindingSession {
+  id                     String               @id @default(cuid())
+  gameId                 String
+  serverId               String
+  pluginClientId         String
+  gameUserId             String
+  platform               String
+  displayName            String?
+  bindMode               String
+  token                  String               @unique
+  pairCode               String               @unique
+  status                 BindingSessionStatus @default(pending)
+  gameAccountSnapshot    Json?
+  expiresAt              DateTime
+  usedAt                 DateTime?
+  usedByUserId           String?
+  confirmedBindingId     String?
+  confirmedGameAccountId String?
+  createdIp              String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  game                   Game                 @relation(fields: [gameId], references: [id])
+  server                 GameServer           @relation(fields: [serverId], references: [id])
+  pluginClient           ServerPluginClient   @relation(fields: [pluginClientId], references: [id])
+  usedByUser             User?                @relation("BindingSessionUsedByUser", fields: [usedByUserId], references: [id])
+
+  @@index([token])
+  @@index([pairCode])
+  @@index([status, expiresAt])
+  @@index([gameId, platform, gameUserId])
+}
+
+model UserGameBinding {
+  id                  String                @id @default(cuid())
+  userId              String
+  gameAccountId       String
+  serverId            String?
+  bindStatus          UserGameBindingStatus @default(active)
+  bindSource          String
+  verifiedBy          String?
+  verifiedAt          DateTime?
+  unbindRequestedAt   DateTime?
+  unbindApprovedAt    DateTime?
+  unbindCooldownUntil DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  user                User                  @relation(fields: [userId], references: [id])
+  gameAccount         GameAccount           @relation(fields: [gameAccountId], references: [id])
+  server              GameServer?           @relation(fields: [serverId], references: [id])
+
+  @@unique([userId, gameAccountId])
+  @@index([userId, bindStatus])
+  @@index([gameAccountId, bindStatus])
+}
+
+model ForumAccount {
+  id             String                 @id @default(cuid())
+  userId         String
+  forumProvider  String
+  forumUserId    String
+  forumUsername  String
+  forumEmail     String?
+  externalUid    String
+  syncStatus     ForumAccountSyncStatus @default(pending_initial_sync)
+  mappingSource  String
+  lastSyncedAt   DateTime?
+  lastLoginAt    DateTime?
+  meta           Json?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  user           User                   @relation(fields: [userId], references: [id])
+  ssoTickets     ForumSsoTicket[]
+
+  @@unique([userId, forumProvider])
+  @@unique([forumProvider, forumUserId])
+  @@unique([forumProvider, externalUid])
+  @@index([forumProvider, syncStatus])
+}
+
+model ForumSsoTicket {
+  id               String               @id @default(cuid())
+  userId           String
+  forumAccountId   String
+  forumProvider    String
+  ticket           String               @unique
+  redirectUrl      String?
+  status           ForumSsoTicketStatus @default(issued)
+  expiresAt        DateTime
+  consumedAt       DateTime?
+  requestIp        String?
+  requestUserAgent String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  user             User                 @relation(fields: [userId], references: [id])
+  forumAccount     ForumAccount         @relation(fields: [forumAccountId], references: [id])
+
+  @@index([status, expiresAt])
+  @@index([forumProvider, status])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  actorUserId    String?
+  action         String
+  targetType     String
+  targetId       String?
+  requestIp      String?
+  requestUserAgent String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  actor          User?    @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@index([actorUserId, createdAt])
+  @@index([targetType, targetId])
+  @@index([action, createdAt])
+}
