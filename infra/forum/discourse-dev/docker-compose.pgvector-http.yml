@@ -49,7 +49,7 @@ services:
       RAILS_ENV: production
       CREATE_DB_ON_BOOT: 1
       MIGRATE_ON_BOOT: 1
-      PRECOMPILE_ON_BOOT: 0
+      PRECOMPILE_ON_BOOT: 1
       UNICORN_WORKERS: 3
       UNICORN_SIDEKIQS: 1
     volumes:
