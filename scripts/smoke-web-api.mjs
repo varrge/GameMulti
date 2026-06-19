@@ -21,10 +21,12 @@ const summary = {
   pairCode: '',
   bindings: 0,
   pluginTelemetry: false,
+  adminServers: 0,
+  adminEvents: 0,
 };
 
 async function main() {
-  await checkPages(['/', '/account', '/bindings', '/bind/confirm?token=demo']);
+  await checkPages(['/', '/account', '/bindings', '/bind/confirm?token=demo', '/admin']);
   await getJson('/healthz');
 
   const createdInvite = await postJson('/admin/invitations/batch-create', {
@@ -59,6 +61,7 @@ async function main() {
   await assertPluginReplayRejected();
   await assertPluginTelemetryAccepted();
   summary.pluginTelemetry = true;
+  await assertAdminTelemetryVisible();
 
   const bindingSession = await createPluginBindingSession();
   summary.sessionId = bindingSession.sessionId;
@@ -140,6 +143,16 @@ async function assertPluginTelemetryAccepted() {
   assert(heartbeat?.ok === true, 'game server heartbeat endpoint did not return ok');
 }
 
+async function assertAdminTelemetryVisible() {
+  const servers = await getJson('/admin/game-servers', { admin: true });
+  assert(Array.isArray(servers) && servers.length >= 1, 'admin game servers endpoint returned no servers');
+  summary.adminServers = servers.length;
+
+  const events = await getJson(`/admin/plugin-events?serverCode=cn-mc-01&player=${encodeURIComponent(`smoke-player-${runId}`)}`, { admin: true });
+  assert(Array.isArray(events) && events.length >= 1, 'admin plugin events endpoint returned no matching events');
+  summary.adminEvents = events.length;
+}
+
 async function sendPluginBindingSessionRequest(params) {
   const request = buildPluginBindingSessionRequest(params);
   return fetch(request.url, request.init);
@@ -207,9 +220,14 @@ function buildPluginBindingSessionRequest(params) {
   };
 }
 
-async function getJson(path, token) {
+async function getJson(path, options) {
+  const token = typeof options === 'string' ? options : undefined;
+  const admin = typeof options === 'object' && options?.admin;
   const response = await fetch(`${apiBaseUrl}${path}`, {
-    headers: token ? { authorization: `Bearer ${token}` } : undefined,
+    headers: {
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(admin ? { 'x-gm-admin-key': adminApiKey } : {}),
+    },
   });
   return parseJsonResponse(response, `GET ${path}`);
 }

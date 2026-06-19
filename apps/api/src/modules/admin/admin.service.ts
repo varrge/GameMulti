@@ -69,6 +69,96 @@ export class AdminService {
     return user;
   }
 
+  async listGameServers() {
+    const servers = await this.prisma.gameServer.findMany({
+      include: {
+        game: true,
+        pluginClients: {
+          orderBy: { updatedAt: 'desc' },
+        },
+        heartbeats: {
+          orderBy: { sentAt: 'desc' },
+          take: 1,
+        },
+        _count: {
+          select: {
+            bindingSessions: true,
+            userBindings: true,
+            pluginEvents: true,
+            heartbeats: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return servers.map((server) => {
+      const latestHeartbeat = server.heartbeats[0] || null;
+
+      return {
+        id: server.id,
+        serverCode: server.serverCode,
+        serverName: server.serverName,
+        status: server.status,
+        region: server.region,
+        game: server.game,
+        pluginClients: server.pluginClients.map((client) => ({
+          id: client.id,
+          clientKey: client.clientKey,
+          pluginVersion: client.pluginVersion,
+          protocolVersion: client.protocolVersion,
+          lastHeartbeatAt: client.lastHeartbeatAt,
+          status: client.status,
+          updatedAt: client.updatedAt,
+        })),
+        latestHeartbeat,
+        counts: server._count,
+      };
+    });
+  }
+
+  async listPluginEvents(filters: {
+    serverCode?: string;
+    eventType?: string;
+    player?: string;
+  }) {
+    const where: Prisma.PluginEventWhereInput = {};
+    const serverCode = String(filters.serverCode || '').trim();
+    const eventType = String(filters.eventType || '').trim();
+    const player = String(filters.player || '').trim();
+
+    if (serverCode) {
+      where.server = { serverCode };
+    }
+    if (eventType) {
+      where.eventType = eventType;
+    }
+    if (player) {
+      where.OR = [
+        { playerUuid: { contains: player, mode: 'insensitive' } },
+        { displayName: { contains: player, mode: 'insensitive' } },
+      ];
+    }
+
+    return this.prisma.pluginEvent.findMany({
+      where,
+      include: {
+        server: {
+          include: { game: true },
+        },
+        pluginClient: {
+          select: {
+            id: true,
+            clientKey: true,
+          },
+        },
+      },
+      orderBy: { occurredAt: 'desc' },
+      take: 200,
+    });
+  }
+
   private buildUserSearchWhere(keyword?: string): Prisma.UserWhereInput {
     const normalized = String(keyword || '').trim();
     if (!normalized) {

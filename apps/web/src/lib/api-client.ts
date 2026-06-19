@@ -3,6 +3,7 @@
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "/api").replace(/\/$/, "");
 const AUTH_TOKEN_KEY = "gamemulti.auth.token";
 const AUTH_USER_KEY = "gamemulti.auth.user";
+const ADMIN_KEY_STORAGE_KEY = "gamemulti.admin.key";
 
 export type ApiUser = {
   id: string;
@@ -44,6 +45,58 @@ export type GameBinding = {
     game: { code: string; name: string };
   };
   server: { serverCode: string; serverName: string };
+};
+
+export type AdminGameServer = {
+  id: string;
+  serverCode: string;
+  serverName: string;
+  status: string;
+  region: string | null;
+  game: { code: string; name: string; status: string };
+  pluginClients: Array<{
+    id: string;
+    clientKey: string;
+    pluginVersion: string | null;
+    protocolVersion: string | null;
+    lastHeartbeatAt: string | null;
+    status: string;
+    updatedAt: string;
+  }>;
+  latestHeartbeat: {
+    statusId: string;
+    healthy: boolean;
+    onlineCount: number;
+    queueDepth: number;
+    sentAt: string;
+    createdAt: string;
+  } | null;
+  counts: {
+    bindingSessions: number;
+    userBindings: number;
+    pluginEvents: number;
+    heartbeats: number;
+  };
+};
+
+export type AdminPluginEvent = {
+  id: string;
+  eventId: string;
+  eventType: string;
+  playerUuid: string;
+  displayName: string | null;
+  occurredAt: string;
+  createdAt: string;
+  metadata: Record<string, unknown> | null;
+  server: {
+    serverCode: string;
+    serverName: string;
+    game: { code: string; name: string };
+  };
+  pluginClient: {
+    id: string;
+    clientKey: string;
+  };
 };
 
 type ApiErrorBody = {
@@ -90,6 +143,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+async function adminRequest<T>(path: string, adminKey: string): Promise<T> {
+  return request<T>(path, {
+    headers: {
+      "X-GM-Admin-Key": adminKey,
+    },
+  });
+}
+
 export function getAuthToken() {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem(AUTH_TOKEN_KEY);
@@ -115,6 +176,19 @@ export function storeAuth(result: AuthResult) {
 export function clearAuth() {
   window.localStorage.removeItem(AUTH_TOKEN_KEY);
   window.localStorage.removeItem(AUTH_USER_KEY);
+}
+
+export function getStoredAdminKey() {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(ADMIN_KEY_STORAGE_KEY) || "";
+}
+
+export function storeAdminKey(value: string) {
+  window.localStorage.setItem(ADMIN_KEY_STORAGE_KEY, value);
+}
+
+export function clearAdminKey() {
+  window.localStorage.removeItem(ADMIN_KEY_STORAGE_KEY);
 }
 
 export const api = {
@@ -166,5 +240,18 @@ export const api = {
 
   listGameBindings() {
     return request<GameBinding[]>("/me/game-bindings");
+  },
+
+  adminListGameServers(adminKey: string) {
+    return adminRequest<AdminGameServer[]>("/admin/game-servers", adminKey);
+  },
+
+  adminListPluginEvents(adminKey: string, filters: { serverCode?: string; eventType?: string; player?: string } = {}) {
+    const query = new URLSearchParams();
+    if (filters.serverCode) query.set("serverCode", filters.serverCode);
+    if (filters.eventType) query.set("eventType", filters.eventType);
+    if (filters.player) query.set("player", filters.player);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return adminRequest<AdminPluginEvent[]>(`/admin/plugin-events${suffix}`, adminKey);
   },
 };

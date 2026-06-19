@@ -16,4 +16,18 @@ export class AdminController {
   getUser(@Param('id') id: string) {
     return this.adminService.getUser(id);
   }
+
+  @Get('game-servers')
+  listGameServers() {
+    return this.adminService.listGameServers();
+  }
+
+  @Get('plugin-events')
+  listPluginEvents(
+    @Query('serverCode') serverCode?: string,
+    @Query('eventType') eventType?: string,
+    @Query('player') player?: string,
+  ) {
+    return this.adminService.listPluginEvents({ serverCode, eventType, player });
+  }
 }

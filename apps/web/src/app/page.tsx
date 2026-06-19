@@ -47,6 +47,7 @@ const Navbar = () => {
           <Link href="/" className="hover:text-[#f27d26] transition-colors">主页</Link>
           <Link href={forumHref} className="hover:text-[#f27d26] transition-colors">论坛</Link>
           <Link href="/bindings" className="hover:text-[#f27d26] transition-colors">绑定</Link>
+          <Link href="/admin" className="hover:text-[#f27d26] transition-colors">后台</Link>
         </div>
 
         <div className="hidden md:flex items-center gap-4">
@@ -65,6 +66,7 @@ const Navbar = () => {
           <Link href="/" className="text-lg font-bold uppercase tracking-widest">主页</Link>
           <Link href={forumHref} className="text-lg font-bold uppercase tracking-widest">论坛</Link>
           <Link href="/bindings" className="text-lg font-bold uppercase tracking-widest">绑定</Link>
+          <Link href="/admin" className="text-lg font-bold uppercase tracking-widest">后台</Link>
           <hr className="border-white/10" />
           <Link href="/account" className="w-full py-3 text-white font-bold uppercase tracking-widest text-left">登录</Link>
           <Link href="/account" className="w-full py-3 bg-white text-black font-bold uppercase tracking-widest">立即加入</Link>
