@@ -8,6 +8,7 @@
 plugin-poc/minecraft-js/
   README.md
   bind-live.js
+  cli.js
   demo.js
   src/plugin_service.js
 ```
@@ -16,6 +17,7 @@ plugin-poc/minecraft-js/
 
 - `/gm bind` 命令对应的绑定会话请求载荷生成
 - 真实 `POST /api/plugin/bindings/session` HMAC 签名调用
+- 模拟游戏命令循环：`/gm bind`、`/gm join`、`/gm quit`、`/gm heartbeat`
 - `player_join` / `player_quit` / `online_duration` 事件上报骨架
 - `heartbeat` 状态上报骨架
 - 本地内存队列，便于演示待上报事件堆积情况
@@ -40,6 +42,22 @@ npm --workspace plugin-poc/minecraft-js test
 
 ```bash
 npm --workspace plugin-poc/minecraft-js run bind:live
+```
+
+启动模拟游戏命令循环：
+
+```bash
+npm --workspace plugin-poc/minecraft-js run cli
+```
+
+示例输入：
+
+```text
+/gm bind Steve
+/gm join Steve
+/gm heartbeat
+/gm quit Steve
+exit
 ```
 
 可覆盖的环境变量：

@@ -116,6 +116,46 @@ class MinecraftPluginPoCService {
     };
   }
 
+  async handleCommand(input, player = {}) {
+    const parts = String(input || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) {
+      return this.commandResult('ignored', '请输入命令，例如 /gm bind Steve');
+    }
+
+    if (parts[0] !== '/gm') {
+      return this.commandResult('ignored', '只处理 /gm 命令');
+    }
+
+    const action = parts[1];
+    if (action === 'bind') {
+      const displayName = parts[2] || player.displayName;
+      const playerUuid = player.playerUuid || this.offlinePlayerUuid(displayName);
+      const result = await this.requestBindingSession({ playerUuid, displayName });
+      return this.commandResult('binding_session_created', result.playerMessage, result);
+    }
+
+    if (action === 'join') {
+      const displayName = parts[2] || player.displayName;
+      const playerUuid = player.playerUuid || this.offlinePlayerUuid(displayName);
+      const event = this.recordPlayerJoin({ playerUuid, displayName });
+      return this.commandResult('player_join_recorded', `${displayName} join 已入队`, event);
+    }
+
+    if (action === 'quit') {
+      const displayName = parts[2] || player.displayName;
+      const playerUuid = player.playerUuid || this.offlinePlayerUuid(displayName);
+      const event = this.recordPlayerQuit({ playerUuid });
+      return this.commandResult('player_quit_recorded', `${displayName} quit 已入队`, event);
+    }
+
+    if (action === 'heartbeat') {
+      const report = this.reportStatus();
+      return this.commandResult('heartbeat_recorded', `heartbeat 已生成，online=${report.payload.onlineCount} queue=${report.payload.queueDepth}`, report);
+    }
+
+    return this.commandResult('unknown_command', '支持命令：/gm bind <name>、/gm join <name>、/gm quit <name>、/gm heartbeat');
+  }
+
   buildSignedRequest({ method, path, body }) {
     const serializedBody = JSON.stringify(body || {});
     const timestamp = Math.floor(this.now().getTime() / 1000).toString();
@@ -251,6 +291,18 @@ class MinecraftPluginPoCService {
     const error = new Error(message);
     error.code = code;
     return error;
+  }
+
+  commandResult(type, message, data = null) {
+    return { type, message, data };
+  }
+
+  offlinePlayerUuid(displayName) {
+    if (!displayName) {
+      throw this.businessError('INVALID_ARGUMENT', 'displayName is required');
+    }
+
+    return `offline-${displayName.toLowerCase()}`;
   }
 
   randomToken(length) {

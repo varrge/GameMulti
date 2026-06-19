@@ -5,6 +5,7 @@
   "description": "Minimal Minecraft plugin PoC runtime verification scripts",
   "scripts": {
     "bind:live": "node bind-live.js",
+    "cli": "node cli.js",
     "demo": "node demo.js",
     "test": "node --test"
   }

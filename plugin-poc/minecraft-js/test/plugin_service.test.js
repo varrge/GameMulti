@@ -170,3 +170,55 @@ test('requestBindingSession posts signed request and returns player message', as
   assert.match(result.playerMessage, /123456/);
   assert.match(result.playerMessage, /\/bind\/confirm\?token=token-1/);
 });
+
+test('handleCommand maps /gm bind to live binding request', async () => {
+  const plugin = new MinecraftPluginPoCService({
+    apiBaseUrl: 'http://127.0.0.1:8080',
+    randomBytes: fixedRandomBytes,
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        sessionId: 'session-1',
+        token: 'token-1',
+        pairCode: '654321',
+        expiresIn: 300,
+        bindUrl: '/bind/confirm?token=token-1',
+      }),
+    }),
+  });
+
+  const result = await plugin.handleCommand('/gm bind Steve');
+
+  assert.equal(result.type, 'binding_session_created');
+  assert.match(result.message, /654321/);
+  assert.equal(JSON.parse(result.data.request.body).gameUserId, 'offline-steve');
+});
+
+test('handleCommand records join quit and heartbeat commands', async () => {
+  const plugin = new MinecraftPluginPoCService({
+    now: () => new Date('2026-06-19T05:00:00.000Z'),
+    randomBytes: fixedRandomBytes,
+  });
+
+  const join = await plugin.handleCommand('/gm join Alex');
+  assert.equal(join.type, 'player_join_recorded');
+  assert.equal(plugin.onlinePlayers.size, 1);
+
+  const heartbeat = await plugin.handleCommand('/gm heartbeat');
+  assert.equal(heartbeat.type, 'heartbeat_recorded');
+  assert.equal(heartbeat.data.payload.onlineCount, 1);
+
+  const quit = await plugin.handleCommand('/gm quit Alex');
+  assert.equal(quit.type, 'player_quit_recorded');
+  assert.equal(plugin.onlinePlayers.size, 0);
+  assert.equal(plugin.eventQueue.length, 2);
+});
+
+test('handleCommand returns help for unknown command', async () => {
+  const plugin = new MinecraftPluginPoCService();
+  const result = await plugin.handleCommand('/gm unknown');
+
+  assert.equal(result.type, 'unknown_command');
+  assert.match(result.message, /\/gm bind/);
+});
