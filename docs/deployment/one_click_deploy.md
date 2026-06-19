@@ -7,6 +7,11 @@ cd /home/yinan/.openclaw/workspace/GameMulti
 bash infra/deploy/up.sh
 ```
 
+论坛生产部署不走这个 dev compose。Discourse 生产接入请按
+`docs/deployment/discourse_production_runbook.md` 执行，使用
+`infra/deploy/discourse.env.example`、`infra/deploy/discourse_check_prereqs.sh`
+和 `infra/deploy/discourse_render_game_env.sh` 维护环境与上线检查。
+
 ## 前置条件
 
 - 已安装 `docker` 与 `docker compose`

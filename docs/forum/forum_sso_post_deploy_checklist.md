@@ -1,5 +1,11 @@
 # 论坛 SSO Bridge 部署后验证与环境回填清单
 
+> 当前真实代码使用 `FORUM_ORIGIN`、`FORUM_ENTRY_PATH`、
+> `FORUM_SSO_SECRET`、`FORUM_SSO_RETURN_URL`，并通过
+> `/api/forum/sso/start` 发起、`/api/forum/sso/callback` 回调。
+> 生产部署以 `docs/deployment/discourse_production_runbook.md` 为准。
+> 本文件保留为通用检查清单，旧变量名只作为历史 bridge 模板参考。
+
 ## 适用范围
 
 这份清单面向 **任意云服务器 / 自托管环境** 的论坛 SSO bridge 接入验证，默认以 Discourse 类论坛为例，但不把固定现网地址、固定机器 IP 或单一拓扑当成前提。
