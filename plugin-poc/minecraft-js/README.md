@@ -7,6 +7,7 @@
 ```text
 plugin-poc/minecraft-js/
   README.md
+  bind-live.js
   demo.js
   src/plugin_service.js
 ```
@@ -14,11 +15,14 @@ plugin-poc/minecraft-js/
 ## 当前覆盖范围
 
 - `/gm bind` 命令对应的绑定会话请求载荷生成
+- 真实 `POST /api/plugin/bindings/session` HMAC 签名调用
 - `player_join` / `player_quit` / `online_duration` 事件上报骨架
 - `heartbeat` 状态上报骨架
 - 本地内存队列，便于演示待上报事件堆积情况
 
 ## 运行方式
+
+离线 demo：
 
 仓库根目录执行：
 
@@ -26,9 +30,32 @@ plugin-poc/minecraft-js/
 node plugin-poc/minecraft-js/demo.js
 ```
 
+单元测试：
+
+```bash
+npm --workspace plugin-poc/minecraft-js test
+```
+
+连接当前本地 GameMulti API 创建真实绑定 session：
+
+```bash
+npm --workspace plugin-poc/minecraft-js run bind:live
+```
+
+可覆盖的环境变量：
+
+```env
+GM_API_BASE_URL=http://127.0.0.1:8080
+GM_SERVER_CODE=cn-mc-01
+GM_PLUGIN_CLIENT_KEY=demo-client
+GM_PLUGIN_CLIENT_SECRET=demo-secret
+GM_PLAYER_UUID=poc-player-001
+GM_PLAYER_NAME=Steve
+```
+
 ## 最小闭环说明
 
-1. 玩家执行绑定命令，插件生成 `POST /api/plugin/bindings/session` 请求载荷与配对信息
+1. 玩家执行绑定命令，插件签名调用 `POST /api/plugin/bindings/session`
 2. 玩家上线后记录 `player_join`
 3. 定时器触发 `online_duration` 事件上报，用于主站奖励结算
 4. 插件通过 `POST /api/game-servers/heartbeat` 发送健康状态与在线人数
@@ -37,6 +64,6 @@ node plugin-poc/minecraft-js/demo.js
 ## 后续迁移建议
 
 - 将 `MinecraftPluginPoCService` 迁移为 Java/Paper 插件里的 command handler 与 event listener
-- 接入真实 HTTP client、签名鉴权和失败重试策略
+- 增加失败重试策略与持久化队列
 - 增加命令下发轮询、奖励回执、封禁联动
 - 为每种事件增加持久化队列与幂等键

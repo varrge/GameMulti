@@ -1,12 +1,24 @@
 const crypto = require('node:crypto');
 
 class MinecraftPluginPoCService {
-  constructor({ apiBaseUrl = 'https://gamemulti.local', serverId = 'mc-poc-01', serverCode = 'cn-mc-01', pluginClientKey = 'demo-client', now = () => new Date(), } = {}) {
+  constructor({
+    apiBaseUrl = 'https://gamemulti.local',
+    serverId = 'mc-poc-01',
+    serverCode = 'cn-mc-01',
+    pluginClientKey = 'demo-client',
+    pluginClientSecret = 'demo-secret',
+    now = () => new Date(),
+    fetchImpl = globalThis.fetch,
+    randomBytes = crypto.randomBytes,
+  } = {}) {
     this.apiBaseUrl = apiBaseUrl;
     this.serverId = serverId;
     this.serverCode = serverCode;
     this.pluginClientKey = pluginClientKey;
+    this.pluginClientSecret = pluginClientSecret;
     this.now = now;
+    this.fetchImpl = fetchImpl;
+    this.randomBytes = randomBytes;
     this.onlinePlayers = new Map();
     this.bindingRequests = [];
     this.eventQueue = [];
@@ -56,6 +68,91 @@ class MinecraftPluginPoCService {
         bindUrl: `${this.apiBaseUrl}/bind/confirm?token=${token}`,
       },
     };
+  }
+
+  async requestBindingSession({ gameCode = 'minecraft', platform = 'java', playerUuid, displayName, bindMode = 'bind_existing' }) {
+    if (!this.fetchImpl) {
+      throw this.businessError('FETCH_UNAVAILABLE', 'fetch implementation is required');
+    }
+    if (!playerUuid || !displayName) {
+      throw this.businessError('INVALID_ARGUMENT', 'playerUuid and displayName are required');
+    }
+
+    const payload = {
+      serverCode: this.serverCode,
+      gameCode,
+      platform,
+      gameUserId: playerUuid,
+      displayName,
+      bindMode,
+    };
+    const request = this.buildSignedRequest({
+      method: 'POST',
+      path: '/api/plugin/bindings/session',
+      body: payload,
+    });
+
+    const response = await this.fetchImpl(`${this.apiBaseUrl}${request.path}`, {
+      method: request.method,
+      headers: request.headers,
+      body: request.body,
+    });
+
+    const data = await this.parseJsonResponse(response);
+    if (!response.ok) {
+      const message = data?.message || `Binding session request failed with HTTP ${response.status}`;
+      const error = this.businessError('BINDING_SESSION_REQUEST_FAILED', message);
+      error.status = response.status;
+      error.response = data;
+      throw error;
+    }
+
+    return {
+      command: `/gm bind ${displayName}`,
+      endpoint: `${this.apiBaseUrl}${request.path}`,
+      request,
+      response: data,
+      playerMessage: `绑定码 ${data.pairCode}，或打开 ${this.apiBaseUrl}${data.bindUrl}`,
+    };
+  }
+
+  buildSignedRequest({ method, path, body }) {
+    const serializedBody = JSON.stringify(body || {});
+    const timestamp = Math.floor(this.now().getTime() / 1000).toString();
+    const nonce = this.randomToken(16);
+    const signature = this.signPluginRequest({
+      method,
+      path,
+      timestamp,
+      nonce,
+      body: serializedBody,
+    });
+
+    return {
+      method: method.toUpperCase(),
+      path,
+      body: serializedBody,
+      headers: {
+        'content-type': 'application/json',
+        'x-gm-client-key': this.pluginClientKey,
+        'x-gm-timestamp': timestamp,
+        'x-gm-nonce': nonce,
+        'x-gm-signature': signature,
+      },
+    };
+  }
+
+  signPluginRequest({ method, path, timestamp, nonce, body }) {
+    const bodyHash = crypto.createHash('sha256').update(body || '').digest('hex');
+    const signaturePayload = [
+      method.toUpperCase(),
+      path,
+      timestamp,
+      nonce,
+      bodyHash,
+    ].join('\n');
+
+    return crypto.createHmac('sha256', this.pluginClientSecret).update(signaturePayload).digest('hex');
   }
 
   recordPlayerJoin({ playerUuid, displayName }) {
@@ -157,7 +254,7 @@ class MinecraftPluginPoCService {
   }
 
   randomToken(length) {
-    return crypto.randomBytes(length).toString('hex');
+    return this.randomBytes(length).toString('hex');
   }
 
   randomDigits(length) {
@@ -166,7 +263,20 @@ class MinecraftPluginPoCService {
   }
 
   id(prefix) {
-    return `${prefix}_${crypto.randomBytes(4).toString('hex')}`;
+    return `${prefix}_${this.randomBytes(4).toString('hex')}`;
+  }
+
+  async parseJsonResponse(response) {
+    const text = await response.text();
+    if (!text) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
   }
 }
 
