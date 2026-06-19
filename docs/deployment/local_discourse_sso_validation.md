@@ -8,18 +8,18 @@ Discourse 首次初始化后通过真实浏览器进入论坛。
 
 ```text
 GameMulti: http://127.0.0.1:8080
-Discourse: http://127.0.0.1:3000
+Discourse: http://localhost
 ```
 
 GameMulti 本地 env 需要指向本地论坛：
 
 ```env
 FORUM_PROVIDER=discourse
-FORUM_ORIGIN=http://127.0.0.1:3000
+FORUM_ORIGIN=http://localhost
 FORUM_ENTRY_PATH=/
 FORUM_SSO_SECRET=local-dev-forum-sso-secret
 FORUM_SSO_RETURN_URL=http://127.0.0.1:8080/forums/discourse-connect
-NEXT_PUBLIC_FORUM_ORIGIN=http://127.0.0.1:3000
+NEXT_PUBLIC_FORUM_ORIGIN=http://localhost
 NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 ```
 
@@ -40,9 +40,9 @@ npm run check:local-discourse
 - GameMulti `/api/healthz` 可访问。
 - GameMulti `/forums` 可访问。
 - 能创建本地测试邀请码、注册测试用户、登录并生成论坛 SSO URL。
-- SSO URL 前缀是 `http://127.0.0.1:3000/session/sso?`。
+- SSO URL 前缀是 `http://localhost/session/sso?`。
 - 能模拟 Discourse 发起的 `sso/sig`，并生成回
-  `http://127.0.0.1:3000/session/sso_login?` 的签名跳转。
+  `http://localhost/session/sso_login?` 的签名跳转。
 - 输出 `discourseState.setupRequired` 和 `discourseState.ssoEndpointState`，用于判断
   论坛是否还停在首次安装/未启用 DiscourseConnect 阶段。
 
@@ -54,7 +54,7 @@ npm run check:local-discourse
 打开：
 
 ```text
-http://127.0.0.1:3000
+http://localhost
 ```
 
 完成 Discourse 初始管理员注册和安装向导。开发邮箱使用
@@ -78,9 +78,9 @@ http://127.0.0.1:3000
 2. 注册或登录 GameMulti 测试用户。
 3. 打开 `http://127.0.0.1:8080/forums`。
 4. 点击“进入论坛”。
-5. 浏览器先进入 `http://127.0.0.1:3000/session/sso?...`。
+5. 浏览器先进入 `http://localhost/session/sso?...`。
 6. Discourse 再回到 `http://127.0.0.1:8080/forums/discourse-connect?sso=...&sig=...`。
-7. GameMulti 生成签名回包后跳到 `http://127.0.0.1:3000/session/sso_login?...`。
+7. GameMulti 生成签名回包后跳到 `http://localhost/session/sso_login?...`。
 8. 回到 GameMulti Admin，确认论坛账号摘要新增或激活。
 
 ## 进入服务器部署的条件

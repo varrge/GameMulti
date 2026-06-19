@@ -22,14 +22,15 @@ SSO checklist in `docs/deployment/local_discourse_sso_validation.md` first.
 Default URL:
 
 ```text
-http://127.0.0.1:3000/
+http://localhost/
 ```
 
-`DISCOURSE_HOSTNAME=127.0.0.1:3000` is the safest default for same-machine
-local validation. `auto-public` resolves the current public IP at startup and
-writes it to the ignored `.env.resolved` file used by Docker Compose, but it
-only works if that public IP can route back to this machine. Use `auto-local`
-for LAN testing, or set an explicit hostname for fixed DNS.
+`DISCOURSE_HOSTNAME=localhost` with `DISCOURSE_HTTP_PORT=80` is the safest
+default for same-machine local validation. It avoids ports and dotted hostnames
+in Discourse's local SVG sprite route. `auto-public` resolves the current public
+IP at startup and writes it to the ignored `.env.resolved` file used by Docker
+Compose, but it only works if that public IP can route back to this machine. Use
+`auto-local` for LAN testing, or set an explicit hostname for fixed DNS.
 
 Stop:
 

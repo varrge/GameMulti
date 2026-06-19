@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 
 const appBaseUrl = stripTrailingSlash(process.env.APP_BASE_URL || 'http://127.0.0.1:8080');
 const apiBaseUrl = stripTrailingSlash(process.env.API_BASE_URL || `${appBaseUrl}/api`);
-const discourseBaseUrl = stripTrailingSlash(process.env.DISCOURSE_BASE_URL || 'http://127.0.0.1:3000');
+const discourseBaseUrl = stripTrailingSlash(process.env.DISCOURSE_BASE_URL || 'http://localhost');
 const adminApiKey = process.env.ADMIN_API_KEY || 'local-dev-admin-key';
 const forumSsoSecret = process.env.FORUM_SSO_SECRET || 'local-dev-forum-sso-secret';
 
