@@ -68,6 +68,17 @@ curl -I http://127.0.0.1:${HOST_HTTP_PORT:-8080}/
 - 如果宿主机已有其他服务占用 `HOST_HTTP_PORT`，外部 HTTP 校验可能被宿主机级代理或端口转发干扰
 - 如需队列/缓存，需手动加 `--profile queue`
 
+## 后续部署任务维护规则
+
+后续只要推进上线、论坛接入、真实环境联调或生产部署，必须同步维护：
+
+- `infra/deploy/` 部署脚本
+- `infra/compose/.env.example` 或对应生产环境变量模板
+- `docs/deployment/` 部署 runbook / checklist
+- smoke 或手工验收命令
+
+新增环境变量时，必须写入模板并标明是否为 secret；新增服务时，必须写清启动、验证、回滚和排障路径。
+
 ## 回滚与排障
 
 停止服务：
