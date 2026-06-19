@@ -8,3 +8,4 @@ dist/
 
 apps/api/dist/
 apps/api/package-lock.json
+infra/forum/discourse-dev/data/

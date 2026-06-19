@@ -14,7 +14,8 @@
     "dev:web": "npm --workspace apps/web run dev",
     "prisma:generate": "npm --workspace apps/api run prisma:generate",
     "prisma:migrate": "npm --workspace apps/api run prisma:migrate",
-    "smoke:web-api": "node scripts/smoke-web-api.mjs"
+    "smoke:web-api": "node scripts/smoke-web-api.mjs",
+    "check:local-discourse": "node scripts/check-local-discourse-sso.mjs"
   },
   "engines": {
     "node": ">=22"

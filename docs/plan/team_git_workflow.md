@@ -228,6 +228,7 @@ PR / MR 描述至少包含：
 5. **Discourse/论坛接入的特殊要求**
    - 论坛部署脚本、环境模板、GameMulti 联调配置必须一起维护。
    - 必须覆盖 `FORUM_ORIGIN`、`FORUM_SSO_SECRET`、`FORUM_SSO_RETURN_URL`、SMTP、HTTPS、备份和恢复说明。
+   - 服务器部署前必须先跑通本地论坛栈：镜像可拉取、容器可启动、HTTP 可访问、失败日志可复现。
    - 真实论坛联调完成前，不得声称论坛上线完成。
 
 6. **生产与开发配置分离**

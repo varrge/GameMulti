@@ -20,6 +20,10 @@ GameMulti 主站/API 与 Discourse 分开部署：
 
 ## 前置条件
 
+- 本地论坛栈已通过 `infra/forum/discourse-dev/dev.sh up`、
+  `infra/forum/discourse-dev/dev.sh check` 和 `npm run check:local-discourse`。
+  如果本地 Discourse 镜像无法拉取、容器无法启动、HTTP 检查失败或
+  GameMulti 不能生成指向本地 Discourse 的 SSO URL，不进入服务器部署。
 - 一台独立论坛服务器，推荐至少 1 GB RAM，生产建议 2 GB+。
 - 论坛域名，例如 `forum.example.com`，DNS A/AAAA 记录已指向论坛服务器。
 - 服务器开放 `80/tcp` 和 `443/tcp`。
