@@ -15,6 +15,7 @@
 - 登录与 Bearer token
 - 当前用户查询
 - Admin 用户只读查询
+- Admin 接口最小权限保护
 - 插件 HMAC 签名工具
 - 插件创建 binding session
 - Web 查询/确认 binding session
@@ -25,7 +26,7 @@
 - 金币结算
 - 商城兑换
 - 封禁联动
-- Admin 角色权限
+- 完整 Admin 角色/权限管理界面
 
 ## 本地环境
 
@@ -39,9 +40,21 @@ cp apps/api/.env.example apps/api/.env
 
 ```env
 APP_SECRET="replace-with-a-long-random-secret"
+ADMIN_API_KEY="replace-with-a-long-random-admin-key"
+ADMIN_USER_IDS=""
+ADMIN_USERNAMES=""
 DATABASE_URL="postgresql://gamemulti:changeme@localhost:5432/gamemulti?schema=public"
 PORT=3401
 ```
+
+## Admin 访问
+
+`/api/admin/*` 接口需要满足以下任一条件：
+
+- 请求头带 `X-GM-Admin-Key: <ADMIN_API_KEY>`
+- 请求头带普通登录得到的 `Authorization: Bearer <token>`，且用户 id 在 `ADMIN_USER_IDS` 或用户名在 `ADMIN_USERNAMES`
+
+本地 smoke test 默认读取 `ADMIN_API_KEY`，没有设置时使用 `local-dev-admin-key`。
 
 ## 常用命令
 
@@ -73,9 +86,9 @@ GET /api/healthz
 
 ```text
 POST /api/invitations/validate
-GET  /api/admin/invitations
-POST /api/admin/invitations/batch-create
-GET  /api/admin/invitations/:id/usages
+GET  /api/admin/invitations              # admin
+POST /api/admin/invitations/batch-create # admin
+GET  /api/admin/invitations/:id/usages   # admin
 ```
 
 认证：
@@ -90,8 +103,8 @@ GET  /api/me
 Admin：
 
 ```text
-GET /api/admin/users
-GET /api/admin/users/:id
+GET /api/admin/users     # admin
+GET /api/admin/users/:id # admin
 ```
 
 绑定：

@@ -88,6 +88,7 @@ bash infra/deploy/up.sh
 APP_NAME=gamemulti
 NODE_ENV=development
 APP_SECRET=replace-with-a-long-random-secret
+ADMIN_API_KEY=replace-with-a-long-random-admin-key
 WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web
 WEB_PORT=3301
 API_URL=http://localhost:8080/api
@@ -118,6 +119,7 @@ npm run smoke:web-api
 
 - `WEB_SOURCE_DIR`：改成目标机器上的真实源码目录
 - `HOST_HTTP_PORT`：如 8080 被占用，改成空闲端口
+- `ADMIN_API_KEY`：改成高强度随机值；后台自动化调用 `/api/admin/*` 时需要
 - `NEXT_PUBLIC_FORUM_ORIGIN` / `FORUM_ORIGIN`：改成实际论坛入口
 - 如需缓存/队列：补齐 `REDIS_URL` 并按需启用 `queue` profile
 

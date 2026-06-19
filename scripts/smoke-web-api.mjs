@@ -5,6 +5,7 @@ const apiBaseUrl = stripTrailingSlash(process.env.API_BASE_URL || `${appBaseUrl}
 
 const pluginClientKey = process.env.PLUGIN_CLIENT_KEY || 'demo-client';
 const pluginClientSecret = process.env.PLUGIN_CLIENT_SECRET || 'demo-secret';
+const adminApiKey = process.env.ADMIN_API_KEY || 'local-dev-admin-key';
 
 const runId = Date.now().toString(36);
 const username = `smoke_${runId}`;
@@ -30,7 +31,7 @@ async function main() {
     maxUses: 3,
     createdBy: 'smoke-test',
     remark: `smoke ${new Date().toISOString()}`,
-  });
+  }, { admin: true });
   const inviteCode = createdInvite?.invitations?.[0]?.code;
   assert(inviteCode, 'admin invitation batch-create did not return a code');
   summary.inviteCode = inviteCode;
@@ -127,12 +128,15 @@ async function getJson(path, token) {
   return parseJsonResponse(response, `GET ${path}`);
 }
 
-async function postJson(path, body, token) {
+async function postJson(path, body, options) {
+  const token = typeof options === 'string' ? options : options?.token;
+  const admin = typeof options === 'object' && options?.admin;
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(admin ? { 'x-gm-admin-key': adminApiKey } : {}),
     },
     body: JSON.stringify(body),
   });

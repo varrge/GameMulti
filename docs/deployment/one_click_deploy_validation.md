@@ -17,6 +17,7 @@
 ```env
 APP_NAME=gamemulti
 NODE_ENV=development
+ADMIN_API_KEY=replace-with-a-long-random-admin-key
 WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web
 WEB_PORT=3301
 HOST_HTTP_PORT=8080
@@ -115,6 +116,7 @@ npm run smoke:web-api
 正式部署前，至少确认以下变量：
 - `WEB_SOURCE_DIR`：必须改成目标机器上真实的 `apps/web` 路径
 - `HOST_HTTP_PORT`：如 8080 被占用，需要改成空闲端口
+- `ADMIN_API_KEY`：必须改成高强度随机值；`/api/admin/*` 需要该 key 或 Admin 用户 Bearer token
 - `NEXT_PUBLIC_FORUM_ORIGIN` / `FORUM_ORIGIN`：改成真实论坛入口
 - 如启用队列/缓存：补齐 `REDIS_URL` 与 Redis 持久化规划
 

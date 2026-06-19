@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { AdminGuard } from '../../auth/admin.guard';
 import { BatchCreateInvitationsDto } from './dto/batch-create-invitations.dto';
 import { ValidateInvitationDto } from './dto/validate-invitation.dto';
 import { InviteService } from './invite.service';
@@ -13,16 +14,19 @@ export class InviteController {
   }
 
   @Get('admin/invitations')
+  @UseGuards(AdminGuard)
   listInvitations() {
     return this.inviteService.listInvitations();
   }
 
   @Post('admin/invitations/batch-create')
+  @UseGuards(AdminGuard)
   batchCreate(@Body() dto: BatchCreateInvitationsDto) {
     return this.inviteService.batchCreate(dto);
   }
 
   @Get('admin/invitations/:id/usages')
+  @UseGuards(AdminGuard)
   listUsages(@Param('id') id: string) {
     return this.inviteService.listInvitationUsages(id);
   }
