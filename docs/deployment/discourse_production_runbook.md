@@ -18,6 +18,9 @@ GameMulti 主站/API 与 Discourse 分开部署：
 
 实际命令以官方文档为准；本 runbook 固定 GameMulti 侧的变量、验证和回滚口径。
 
+正式上线时优先按 `docs/deployment/forum_production_launch_checklist.md`
+执行；本文保留背景、变量说明和排障口径。
+
 ## 前置条件
 
 - 本地论坛栈已通过 `infra/forum/discourse-dev/dev.sh up`、
@@ -79,10 +82,13 @@ bash infra/deploy/discourse_check_prereqs.sh infra/deploy/discourse.env
 生成 GameMulti 侧论坛环境变量片段：
 
 ```bash
+bash infra/deploy/discourse_render_launch_summary.sh infra/deploy/discourse.env
 bash infra/deploy/discourse_render_game_env.sh infra/deploy/discourse.env
 ```
 
-把输出写入目标环境的 GameMulti env，例如 `infra/compose/.env`、生产密钥平台或 CI secrets。
+`discourse_render_launch_summary.sh` 输出不包含 secret，可用于上线前核对。
+`discourse_render_game_env.sh` 输出包含 `FORUM_SSO_SECRET`，把它写入目标环境的
+GameMulti env，例如 `infra/compose/.env`、生产密钥平台或 CI secrets。
 
 ## Discourse 安装步骤
 

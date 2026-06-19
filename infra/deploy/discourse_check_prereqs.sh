@@ -54,7 +54,7 @@ fi
 command -v git >/dev/null 2>&1 || fail "git is not installed"
 command -v curl >/dev/null 2>&1 || warn "curl is not installed; HTTP checks will be skipped"
 
-for script in discourse_render_game_env.sh discourse_configure_sso.sh; do
+for script in discourse_render_game_env.sh discourse_render_launch_summary.sh discourse_configure_sso.sh; do
   if [[ ! -x "$SCRIPT_DIR/$script" ]]; then
     warn "$script is not executable; run: chmod +x infra/deploy/$script"
   fi
