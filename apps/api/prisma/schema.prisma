@@ -189,8 +189,23 @@ model ServerPluginClient {
 
   server            GameServer @relation(fields: [serverId], references: [id])
   bindingSessions   BindingSession[]
+  requestNonces     PluginRequestNonce[]
 
   @@index([serverId, status])
+}
+
+model PluginRequestNonce {
+  id              String   @id @default(cuid())
+  pluginClientId  String
+  nonce           String
+  timestamp       DateTime
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  pluginClient    ServerPluginClient @relation(fields: [pluginClientId], references: [id])
+
+  @@unique([pluginClientId, nonce])
+  @@index([expiresAt])
 }
 
 model GameAccount {

@@ -128,6 +128,8 @@ X-GM-Nonce: <random nonce>
 X-GM-Signature: <hex hmac sha256>
 ```
 
+`X-GM-Nonce` 在同一插件客户端下只能使用一次。服务端会在允许的时间窗口内记录已使用 nonce，重复请求会返回 `401`，用于阻止签名请求被重放。
+
 签名 payload：
 
 ```text

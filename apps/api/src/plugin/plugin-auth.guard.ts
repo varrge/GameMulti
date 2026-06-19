@@ -1,8 +1,10 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { verifyPluginSignature } from '../security/plugin-signature';
 
 const MAX_CLOCK_SKEW_SECONDS = 5 * 60;
+const NONCE_RETENTION_SECONDS = MAX_CLOCK_SKEW_SECONDS * 2;
 
 @Injectable()
 export class PluginAuthGuard implements CanActivate {
@@ -69,6 +71,8 @@ export class PluginAuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid plugin signature');
     }
 
+    await this.rememberNonce(client.id, nonce, requestTime);
+
     request.pluginClient = {
       id: client.id,
       clientKey: client.clientKey,
@@ -84,6 +88,30 @@ export class PluginAuthGuard implements CanActivate {
     });
 
     return true;
+  }
+
+  private async rememberNonce(pluginClientId: string, nonce: string, requestTime: number) {
+    const now = new Date();
+
+    await this.prisma.pluginRequestNonce.deleteMany({
+      where: { expiresAt: { lt: now } },
+    });
+
+    try {
+      await this.prisma.pluginRequestNonce.create({
+        data: {
+          pluginClientId,
+          nonce,
+          timestamp: new Date(requestTime * 1000),
+          expiresAt: new Date(now.getTime() + NONCE_RETENTION_SECONDS * 1000),
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new UnauthorizedException('Plugin nonce already used');
+      }
+      throw error;
+    }
   }
 
   private readHeader(headers: Record<string, string | string[] | undefined>, name: string) {

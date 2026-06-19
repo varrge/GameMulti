@@ -55,6 +55,8 @@ async function main() {
   const me = await getJson('/me', login.token);
   assert(me?.user?.username === username, 'me endpoint returned a different user');
 
+  await assertPluginReplayRejected();
+
   const bindingSession = await createPluginBindingSession();
   summary.sessionId = bindingSession.sessionId;
   summary.pairCode = bindingSession.pairCode;
@@ -86,12 +88,39 @@ async function checkPages(paths) {
 }
 
 async function createPluginBindingSession() {
+  const response = await sendPluginBindingSessionRequest({
+    gameUserId: `smoke-game-${runId}`,
+    displayName: `Smoke ${runId}`,
+  });
+
+  return parseJsonResponse(response, 'POST /plugin/bindings/session');
+}
+
+async function assertPluginReplayRejected() {
+  const request = buildPluginBindingSessionRequest({
+    gameUserId: `smoke-replay-${runId}`,
+    displayName: `Smoke Replay ${runId}`,
+  });
+
+  const firstResponse = await fetch(request.url, request.init);
+  await parseJsonResponse(firstResponse, 'POST /plugin/bindings/session replay setup');
+
+  const replayResponse = await fetch(request.url, request.init);
+  assert(replayResponse.status === 401, `replayed plugin request returned ${replayResponse.status}, expected 401`);
+}
+
+async function sendPluginBindingSessionRequest(params) {
+  const request = buildPluginBindingSessionRequest(params);
+  return fetch(request.url, request.init);
+}
+
+function buildPluginBindingSessionRequest(params) {
   const body = JSON.stringify({
     serverCode: 'cn-mc-01',
     gameCode: 'minecraft',
     platform: 'java',
-    gameUserId: `smoke-game-${runId}`,
-    displayName: `Smoke ${runId}`,
+    gameUserId: params.gameUserId,
+    displayName: params.displayName,
     bindMode: 'bind_existing',
   });
 
@@ -106,19 +135,20 @@ async function createPluginBindingSession() {
     body,
   }, pluginClientSecret);
 
-  const response = await fetch(`${apiBaseUrl}/plugin/bindings/session`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-gm-client-key': pluginClientKey,
-      'x-gm-timestamp': timestamp,
-      'x-gm-nonce': nonce,
-      'x-gm-signature': signature,
+  return {
+    url: `${apiBaseUrl}/plugin/bindings/session`,
+    init: {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-gm-client-key': pluginClientKey,
+        'x-gm-timestamp': timestamp,
+        'x-gm-nonce': nonce,
+        'x-gm-signature': signature,
+      },
+      body,
     },
-    body,
-  });
-
-  return parseJsonResponse(response, 'POST /plugin/bindings/session');
+  };
 }
 
 async function getJson(path, token) {
