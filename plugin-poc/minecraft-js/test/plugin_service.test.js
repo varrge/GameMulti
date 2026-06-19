@@ -196,23 +196,44 @@ test('handleCommand maps /gm bind to live binding request', async () => {
 });
 
 test('handleCommand records join quit and heartbeat commands', async () => {
+  const calls = [];
   const plugin = new MinecraftPluginPoCService({
+    apiBaseUrl: 'http://127.0.0.1:8080',
     now: () => new Date('2026-06-19T05:00:00.000Z'),
     randomBytes: fixedRandomBytes,
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ ok: true }),
+      };
+    },
   });
 
   const join = await plugin.handleCommand('/gm join Alex');
-  assert.equal(join.type, 'player_join_recorded');
+  assert.equal(join.type, 'player_join_reported');
   assert.equal(plugin.onlinePlayers.size, 1);
+  assert.equal(plugin.eventQueue.length, 0);
 
   const heartbeat = await plugin.handleCommand('/gm heartbeat');
-  assert.equal(heartbeat.type, 'heartbeat_recorded');
-  assert.equal(heartbeat.data.payload.onlineCount, 1);
+  assert.equal(heartbeat.type, 'heartbeat_reported');
+  assert.equal(heartbeat.data.report.payload.onlineCount, 1);
 
   const quit = await plugin.handleCommand('/gm quit Alex');
-  assert.equal(quit.type, 'player_quit_recorded');
+  assert.equal(quit.type, 'player_quit_reported');
   assert.equal(plugin.onlinePlayers.size, 0);
-  assert.equal(plugin.eventQueue.length, 2);
+  assert.equal(plugin.eventQueue.length, 0);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0].url, 'http://127.0.0.1:8080/api/plugin/events');
+  assert.equal(JSON.parse(calls[0].init.body).eventType, 'player_join');
+  assert.equal(JSON.parse(calls[0].init.body).eventId, 'evt_01010101');
+  assert.equal(calls[1].url, 'http://127.0.0.1:8080/api/game-servers/heartbeat');
+  assert.equal(JSON.parse(calls[1].init.body).onlineCount, 1);
+  assert.equal(JSON.parse(calls[1].init.body).statusId, 'status_01010101');
+  assert.equal(calls[2].url, 'http://127.0.0.1:8080/api/plugin/events');
+  assert.equal(JSON.parse(calls[2].init.body).eventType, 'player_quit');
+  assert.equal(JSON.parse(calls[2].init.body).eventId, 'evt_01010101');
 });
 
 test('handleCommand returns help for unknown command', async () => {

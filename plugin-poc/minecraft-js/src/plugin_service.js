@@ -138,19 +138,22 @@ class MinecraftPluginPoCService {
       const displayName = parts[2] || player.displayName;
       const playerUuid = player.playerUuid || this.offlinePlayerUuid(displayName);
       const event = this.recordPlayerJoin({ playerUuid, displayName });
-      return this.commandResult('player_join_recorded', `${displayName} join 已入队`, event);
+      const result = await this.sendPluginEvent(event);
+      return this.commandResult('player_join_reported', `${displayName} join 已上报`, result);
     }
 
     if (action === 'quit') {
       const displayName = parts[2] || player.displayName;
       const playerUuid = player.playerUuid || this.offlinePlayerUuid(displayName);
       const event = this.recordPlayerQuit({ playerUuid });
-      return this.commandResult('player_quit_recorded', `${displayName} quit 已入队`, event);
+      const result = await this.sendPluginEvent(event);
+      return this.commandResult('player_quit_reported', `${displayName} quit 已上报`, result);
     }
 
     if (action === 'heartbeat') {
       const report = this.reportStatus();
-      return this.commandResult('heartbeat_recorded', `heartbeat 已生成，online=${report.payload.onlineCount} queue=${report.payload.queueDepth}`, report);
+      const result = await this.sendHeartbeat(report);
+      return this.commandResult('heartbeat_reported', `heartbeat 已上报，online=${report.payload.onlineCount} queue=${report.payload.queueDepth}`, result);
     }
 
     return this.commandResult('unknown_command', '支持命令：/gm bind <name>、/gm join <name>、/gm quit <name>、/gm heartbeat');
@@ -193,6 +196,73 @@ class MinecraftPluginPoCService {
     ].join('\n');
 
     return crypto.createHmac('sha256', this.pluginClientSecret).update(signaturePayload).digest('hex');
+  }
+
+  async sendPluginEvent(event) {
+    const data = await this.postSignedJson({
+      path: '/api/plugin/events',
+      body: {
+        eventId: event.eventId,
+        ...event.payload,
+      },
+      failureCode: 'PLUGIN_EVENT_REPORT_FAILED',
+      failureMessage: 'Plugin event report failed',
+    });
+
+    this.eventQueue = this.eventQueue.filter((queuedEvent) => queuedEvent.eventId !== event.eventId);
+
+    return {
+      endpoint: `${this.apiBaseUrl}/api/plugin/events`,
+      event,
+      response: data,
+    };
+  }
+
+  async sendHeartbeat(report) {
+    const data = await this.postSignedJson({
+      path: '/api/game-servers/heartbeat',
+      body: {
+        statusId: report.statusId,
+        ...report.payload,
+      },
+      failureCode: 'HEARTBEAT_REPORT_FAILED',
+      failureMessage: 'Heartbeat report failed',
+    });
+
+    return {
+      endpoint: `${this.apiBaseUrl}/api/game-servers/heartbeat`,
+      report,
+      response: data,
+    };
+  }
+
+  async postSignedJson({ path, body, failureCode, failureMessage }) {
+    if (!this.fetchImpl) {
+      throw this.businessError('FETCH_UNAVAILABLE', 'fetch implementation is required');
+    }
+
+    const request = this.buildSignedRequest({
+      method: 'POST',
+      path,
+      body,
+    });
+
+    const response = await this.fetchImpl(`${this.apiBaseUrl}${request.path}`, {
+      method: request.method,
+      headers: request.headers,
+      body: request.body,
+    });
+    const data = await this.parseJsonResponse(response);
+
+    if (!response.ok) {
+      const message = data?.message || `${failureMessage} with HTTP ${response.status}`;
+      const error = this.businessError(failureCode, message);
+      error.status = response.status;
+      error.response = data;
+      throw error;
+    }
+
+    return data;
   }
 
   recordPlayerJoin({ playerUuid, displayName }) {
@@ -254,7 +324,6 @@ class MinecraftPluginPoCService {
       statusId: this.id('status'),
       endpoint: `${this.apiBaseUrl}/api/game-servers/heartbeat`,
       payload: {
-        pluginClientKey: this.pluginClientKey,
         serverId: this.serverId,
         serverCode: this.serverCode,
         healthy,

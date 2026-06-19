@@ -171,6 +171,8 @@ model GameServer {
   pluginClients   ServerPluginClient[]
   bindingSessions BindingSession[]
   userBindings    UserGameBinding[]
+  pluginEvents    PluginEvent[]
+  heartbeats      GameServerHeartbeat[]
 
   @@index([gameId, status])
 }
@@ -191,6 +193,8 @@ model ServerPluginClient {
   server            GameServer @relation(fields: [serverId], references: [id])
   bindingSessions   BindingSession[]
   requestNonces     PluginRequestNonce[]
+  pluginEvents      PluginEvent[]
+  heartbeats        GameServerHeartbeat[]
 
   @@index([serverId, status])
 }
@@ -282,6 +286,45 @@ model UserGameBinding {
   @@unique([userId, gameAccountId])
   @@index([userId, bindStatus])
   @@index([gameAccountId, bindStatus])
+}
+
+model PluginEvent {
+  id             String   @id @default(cuid())
+  pluginClientId String
+  serverId       String
+  eventId        String
+  eventType      String
+  playerUuid     String
+  displayName    String?
+  occurredAt     DateTime
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  pluginClient   ServerPluginClient @relation(fields: [pluginClientId], references: [id])
+  server         GameServer          @relation(fields: [serverId], references: [id])
+
+  @@unique([pluginClientId, eventId])
+  @@index([serverId, eventType, occurredAt])
+  @@index([playerUuid, occurredAt])
+}
+
+model GameServerHeartbeat {
+  id             String   @id @default(cuid())
+  pluginClientId String
+  serverId       String
+  statusId       String
+  healthy        Boolean
+  onlineCount    Int
+  queueDepth     Int
+  sentAt         DateTime
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  pluginClient   ServerPluginClient @relation(fields: [pluginClientId], references: [id])
+  server         GameServer          @relation(fields: [serverId], references: [id])
+
+  @@unique([pluginClientId, statusId])
+  @@index([serverId, sentAt])
 }
 
 model ForumAccount {

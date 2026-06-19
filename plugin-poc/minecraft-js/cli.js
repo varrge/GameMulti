@@ -1,4 +1,5 @@
 const readline = require('node:readline/promises');
+const fs = require('node:fs');
 const { stdin: input, stdout: output } = require('node:process');
 const { MinecraftPluginPoCService } = require('./src/plugin_service');
 
@@ -9,11 +10,26 @@ async function main() {
     pluginClientKey: process.env.GM_PLUGIN_CLIENT_KEY || 'demo-client',
     pluginClientSecret: process.env.GM_PLUGIN_CLIENT_SECRET || 'demo-secret',
   });
-  const rl = readline.createInterface({ input, output });
 
   console.log('GameMulti Minecraft PoC CLI');
   console.log('Commands: /gm bind <name>, /gm join <name>, /gm quit <name>, /gm heartbeat, exit');
 
+  if (!input.isTTY) {
+    const lines = fs.readFileSync(0, 'utf8').split(/\r?\n/);
+    for (const line of lines) {
+      const command = line.trim();
+      if (!command) {
+        continue;
+      }
+      if (command === 'exit' || command === 'quit') {
+        break;
+      }
+      await runCommand(plugin, command);
+    }
+    return;
+  }
+
+  const rl = readline.createInterface({ input, output });
   try {
     while (true) {
       const line = await rl.question('> ');
@@ -22,15 +38,19 @@ async function main() {
         break;
       }
 
-      try {
-        const result = await plugin.handleCommand(command);
-        console.log(result.message);
-      } catch (error) {
-        console.error(error.message);
-      }
+      await runCommand(plugin, command);
     }
   } finally {
     rl.close();
+  }
+}
+
+async function runCommand(plugin, command) {
+  try {
+    const result = await plugin.handleCommand(command);
+    console.log(result.message);
+  } catch (error) {
+    console.error(error.message);
   }
 }
 

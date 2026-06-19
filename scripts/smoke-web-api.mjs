@@ -20,6 +20,7 @@ const summary = {
   sessionId: '',
   pairCode: '',
   bindings: 0,
+  pluginTelemetry: false,
 };
 
 async function main() {
@@ -56,6 +57,8 @@ async function main() {
   assert(me?.user?.username === username, 'me endpoint returned a different user');
 
   await assertPluginReplayRejected();
+  await assertPluginTelemetryAccepted();
+  summary.pluginTelemetry = true;
 
   const bindingSession = await createPluginBindingSession();
   summary.sessionId = bindingSession.sessionId;
@@ -109,9 +112,62 @@ async function assertPluginReplayRejected() {
   assert(replayResponse.status === 401, `replayed plugin request returned ${replayResponse.status}, expected 401`);
 }
 
+async function assertPluginTelemetryAccepted() {
+  const eventResponse = await sendPluginRequest('/api/plugin/events', {
+    eventId: `smoke-event-${runId}`,
+    serverId: 'mc-poc-01',
+    serverCode: 'cn-mc-01',
+    eventType: 'player_join',
+    playerUuid: `smoke-player-${runId}`,
+    displayName: `Smoke ${runId}`,
+    occurredAt: new Date().toISOString(),
+    metadata: { source: 'smoke' },
+  });
+  const event = await parseJsonResponse(eventResponse, 'POST /plugin/events');
+  assert(event?.ok === true, 'plugin event endpoint did not return ok');
+
+  const heartbeatResponse = await sendPluginRequest('/api/game-servers/heartbeat', {
+    statusId: `smoke-heartbeat-${runId}`,
+    serverId: 'mc-poc-01',
+    serverCode: 'cn-mc-01',
+    healthy: true,
+    onlineCount: 1,
+    queueDepth: 0,
+    sentAt: new Date().toISOString(),
+    metadata: { source: 'smoke' },
+  });
+  const heartbeat = await parseJsonResponse(heartbeatResponse, 'POST /game-servers/heartbeat');
+  assert(heartbeat?.ok === true, 'game server heartbeat endpoint did not return ok');
+}
+
 async function sendPluginBindingSessionRequest(params) {
   const request = buildPluginBindingSessionRequest(params);
   return fetch(request.url, request.init);
+}
+
+function sendPluginRequest(path, payload) {
+  const body = JSON.stringify(payload);
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const nonce = randomUUID();
+  const signature = signPluginRequest({
+    method: 'POST',
+    path,
+    timestamp,
+    nonce,
+    body,
+  }, pluginClientSecret);
+
+  return fetch(`${apiBaseUrl}${path.replace(/^\/api/, '')}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-gm-client-key': pluginClientKey,
+      'x-gm-timestamp': timestamp,
+      'x-gm-nonce': nonce,
+      'x-gm-signature': signature,
+    },
+    body,
+  });
 }
 
 function buildPluginBindingSessionRequest(params) {
