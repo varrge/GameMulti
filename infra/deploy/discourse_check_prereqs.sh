@@ -46,6 +46,16 @@ set -a
 source "$ENV_FILE"
 set +a
 
+GAME_API_ORIGIN=${GAME_API_ORIGIN:-${GAME_PUBLIC_ORIGIN:-}}
+FORUM_ORIGIN=${FORUM_ORIGIN:-https://${DISCOURSE_HOSTNAME:-}}
+FORUM_SSO_RETURN_URL=${FORUM_SSO_RETURN_URL:-${GAME_PUBLIC_ORIGIN:-}/forums/discourse-connect}
+NEXT_PUBLIC_FORUM_ORIGIN=${NEXT_PUBLIC_FORUM_ORIGIN:-$FORUM_ORIGIN}
+
+export GAME_API_ORIGIN
+export FORUM_ORIGIN
+export FORUM_SSO_RETURN_URL
+export NEXT_PUBLIC_FORUM_ORIGIN
+
 note "==> Checking local tools"
 command -v docker >/dev/null 2>&1 || fail "docker is not installed"
 if command -v docker >/dev/null 2>&1 && ! docker info >/dev/null 2>&1; then
@@ -63,7 +73,6 @@ done
 note "==> Checking required variables"
 required_vars=(
   GAME_PUBLIC_ORIGIN
-  GAME_API_ORIGIN
   DISCOURSE_HOSTNAME
   DISCOURSE_DEVELOPER_EMAILS
   LETSENCRYPT_ACCOUNT_EMAIL
@@ -72,9 +81,7 @@ required_vars=(
   DISCOURSE_SMTP_USER_NAME
   DISCOURSE_SMTP_PASSWORD
   DISCOURSE_NOTIFICATION_EMAIL
-  FORUM_ORIGIN
   FORUM_SSO_SECRET
-  FORUM_SSO_RETURN_URL
 )
 
 for name in "${required_vars[@]}"; do
@@ -83,15 +90,12 @@ done
 
 real_value_vars=(
   GAME_PUBLIC_ORIGIN
-  GAME_API_ORIGIN
   DISCOURSE_HOSTNAME
   DISCOURSE_DEVELOPER_EMAILS
   LETSENCRYPT_ACCOUNT_EMAIL
   DISCOURSE_SMTP_ADDRESS
   DISCOURSE_SMTP_USER_NAME
   DISCOURSE_NOTIFICATION_EMAIL
-  FORUM_ORIGIN
-  FORUM_SSO_RETURN_URL
 )
 
 for name in "${real_value_vars[@]}"; do

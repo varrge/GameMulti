@@ -10,9 +10,7 @@
 | 项 | 示例 | 说明 |
 | --- | --- | --- |
 | GameMulti 入口 | `https://app.example.com` | 用户访问主站的公网地址 |
-| GameMulti API 入口 | `https://app.example.com` | 未分域时同主站 |
 | Discourse 域名 | `forum.example.com` | 不带协议，DNS 指向论坛服务器 |
-| Discourse URL | `https://forum.example.com` | GameMulti `FORUM_ORIGIN` |
 | 管理员邮箱 | `admin@example.com` | Discourse 初始化和证书通知 |
 | SMTP 地址/端口/账号/密码 | provider value | Discourse 生产必须可发信 |
 | SSO secret | `openssl rand -hex 32` | GameMulti 和 Discourse 必须完全一致 |
@@ -36,7 +34,6 @@ openssl rand -hex 32
 
 ```env
 GAME_PUBLIC_ORIGIN=https://app.example.com
-GAME_API_ORIGIN=https://app.example.com
 DISCOURSE_HOSTNAME=forum.example.com
 DISCOURSE_DEVELOPER_EMAILS=admin@example.com
 LETSENCRYPT_ACCOUNT_EMAIL=admin@example.com
@@ -45,11 +42,17 @@ DISCOURSE_SMTP_PORT=587
 DISCOURSE_SMTP_USER_NAME=postmaster@example.com
 DISCOURSE_SMTP_PASSWORD=replace-with-real-smtp-password
 DISCOURSE_NOTIFICATION_EMAIL=noreply@example.com
-FORUM_ORIGIN=https://forum.example.com
 FORUM_SSO_SECRET=replace-with-64-hex-random-secret
-FORUM_SSO_RETURN_URL=https://app.example.com/forums/discourse-connect
-NEXT_PUBLIC_FORUM_ORIGIN=https://forum.example.com
 ```
+
+派生规则：
+
+- `GAME_API_ORIGIN` 默认等于 `GAME_PUBLIC_ORIGIN`。
+- `FORUM_ORIGIN` 默认等于 `https://DISCOURSE_HOSTNAME`。
+- `NEXT_PUBLIC_FORUM_ORIGIN` 默认等于 `FORUM_ORIGIN`。
+- `FORUM_SSO_RETURN_URL` 默认等于 `GAME_PUBLIC_ORIGIN + /forums/discourse-connect`。
+
+只有分域、反向代理路径特殊或论坛入口和 hostname 不一致时，才显式覆盖这些值。
 
 本地预检：
 
@@ -72,10 +75,12 @@ FORUM_PROVIDER=discourse
 FORUM_ORIGIN=https://forum.example.com
 FORUM_ENTRY_PATH=/
 FORUM_SSO_SECRET=replace-with-the-same-secret-as-discourse
-FORUM_SSO_RETURN_URL=https://app.example.com/forums/discourse-connect
-NEXT_PUBLIC_FORUM_ORIGIN=https://forum.example.com
 NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 ```
+
+如果使用 `infra/deploy/up.sh`，服务器 `infra/compose/.env` 里只需要写
+`PUBLIC_ORIGIN`、`FORUM_ORIGIN` 和 `FORUM_SSO_SECRET`；脚本会派生
+`FORUM_SSO_RETURN_URL` 和 `NEXT_PUBLIC_FORUM_ORIGIN`。
 
 重启主站：
 

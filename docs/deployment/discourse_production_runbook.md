@@ -50,15 +50,15 @@ cp infra/deploy/discourse.env.example infra/deploy/discourse.env
 | 变量 | 用途 | 是否 secret |
 | --- | --- | --- |
 | `GAME_PUBLIC_ORIGIN` | GameMulti 浏览器访问入口 | 否 |
-| `GAME_API_ORIGIN` | GameMulti API 对外入口，未分域时同主站 | 否 |
+| `GAME_API_ORIGIN` | GameMulti API 对外入口，未分域时可省略，默认同主站 | 否 |
 | `DISCOURSE_HOSTNAME` | 论坛域名，不带协议 | 否 |
 | `DISCOURSE_DEVELOPER_EMAILS` | Discourse 管理员邮箱 | 否 |
 | `LETSENCRYPT_ACCOUNT_EMAIL` | TLS 证书通知邮箱 | 否 |
 | `DISCOURSE_SMTP_*` | Discourse 发信配置 | 密码是 secret |
-| `FORUM_ORIGIN` | GameMulti 后端使用的论坛根地址 | 否 |
+| `FORUM_ORIGIN` | GameMulti 后端使用的论坛根地址，可省略，默认 `https://DISCOURSE_HOSTNAME` | 否 |
 | `FORUM_SSO_SECRET` | DiscourseConnect shared secret | 是 |
-| `FORUM_SSO_RETURN_URL` | DiscourseConnect URL，当前应指向 GameMulti 前端中转页 | 否 |
-| `NEXT_PUBLIC_FORUM_ORIGIN` | 前端展示/跳转用论坛地址 | 否 |
+| `FORUM_SSO_RETURN_URL` | DiscourseConnect URL，可省略，默认 `GAME_PUBLIC_ORIGIN + /forums/discourse-connect` | 否 |
+| `NEXT_PUBLIC_FORUM_ORIGIN` | 前端展示/跳转用论坛地址，可省略，默认 `FORUM_ORIGIN` | 否 |
 | `DISCOURSE_CONTAINER` | 论坛服务器上的 Discourse 容器名，官方默认 `app` | 否 |
 
 生成 SSO secret：
@@ -167,8 +167,8 @@ FORUM_PROVIDER=discourse
 FORUM_ORIGIN=https://forum.example.com
 FORUM_ENTRY_PATH=/
 FORUM_SSO_SECRET=replace-with-the-same-secret-as-discourse
-FORUM_SSO_RETURN_URL=https://app.example.com/forums/discourse-connect
-NEXT_PUBLIC_FORUM_ORIGIN=https://forum.example.com
+# FORUM_SSO_RETURN_URL defaults to PUBLIC_ORIGIN + /forums/discourse-connect
+# NEXT_PUBLIC_FORUM_ORIGIN defaults to FORUM_ORIGIN
 NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 ```
 

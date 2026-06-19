@@ -34,10 +34,9 @@ APP_NAME=gamemulti
 NODE_ENV=development
 WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web
 WEB_PORT=3301
-API_URL=http://localhost:8080/api
+PUBLIC_ORIGIN=http://localhost:8080
 NEXT_PUBLIC_API_BASE_URL=/api
-NEXT_PUBLIC_FORUM_ORIGIN=https://bbs.example.com
-NEXT_PUBLIC_FORUM_ENTRY_PATH=/
+FORUM_ORIGIN=https://bbs.example.com
 HOST_HTTP_PORT=8080
 ```
 
@@ -82,6 +81,17 @@ DEPLOY_HEALTH_DELAY_SECONDS=3
 如果服务器确认只作为部署目录、不会保留本地代码改动，可以把
 `DEPLOY_UPDATE_MODE=reset`，脚本会强制对齐到远端分支。生产首次建议保持
 `ff-only`。
+
+## 变量派生规则
+
+上线时不需要重复填同一个地址：
+
+- `PUBLIC_ORIGIN`：主站公网入口，脚本会派生 `APP_URL` 和 `API_URL`。
+- `FORUM_ORIGIN`：论坛公网入口，脚本会派生 `NEXT_PUBLIC_FORUM_ORIGIN`。
+- `FORUM_SSO_RETURN_URL`：默认派生为 `PUBLIC_ORIGIN + /forums/discourse-connect`。
+- `NEXT_PUBLIC_API_BASE_URL`：默认用 `/api`，浏览器同源访问，不需要单独填公网 API 地址。
+
+只有分域、反向代理路径特殊或前后端不走同源时，才需要显式覆盖这些派生值。
 
 ## 失败退出条件
 

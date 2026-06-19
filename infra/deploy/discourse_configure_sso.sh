@@ -30,15 +30,19 @@ set -a
 source "$ENV_FILE"
 set +a
 
+FORUM_ORIGIN=${FORUM_ORIGIN:-https://${DISCOURSE_HOSTNAME:-}}
+FORUM_SSO_RETURN_URL=${FORUM_SSO_RETURN_URL:-${GAME_PUBLIC_ORIGIN:-}/forums/discourse-connect}
+
+export FORUM_ORIGIN
+export FORUM_SSO_RETURN_URL
+
 command -v docker >/dev/null 2>&1 || fail "docker is not installed"
 docker info >/dev/null 2>&1 || fail "docker daemon is not reachable"
 
 required_vars=(
   GAME_PUBLIC_ORIGIN
   DISCOURSE_HOSTNAME
-  FORUM_ORIGIN
   FORUM_SSO_SECRET
-  FORUM_SSO_RETURN_URL
 )
 
 for name in "${required_vars[@]}"; do
