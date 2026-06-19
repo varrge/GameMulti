@@ -44,6 +44,8 @@ HOST_HTTP_PORT=8080
 
 - 使用 `infra/compose/docker-compose.yml`
 - 默认以 `APP_NAME` 作为 compose project 名（默认 `gamemulti`）
+- 第一次部署时，如果 `APP_SECRET`、`ADMIN_API_KEY`、`FORUM_SSO_SECRET`、
+  `POSTGRES_PASSWORD` 仍是占位值，脚本会随机生成并写回 `infra/compose/.env`
 - 启动前会检查是否存在来自其他工作区的同名旧容器；若检测到，会先清理旧的 `gamemulti-web`、`gamemulti-nginx` 与对应网络，避免 reviewer 在真实仓库复核时撞上历史残留
 - 通过 `docker compose up -d --remove-orphans` 拉起 `web`、`api`、`postgres` 和 `nginx`
 - `redis` 作为可选 `queue` profile，默认不启动
@@ -92,6 +94,24 @@ DEPLOY_HEALTH_DELAY_SECONDS=3
 - `NEXT_PUBLIC_API_BASE_URL`：默认用 `/api`，浏览器同源访问，不需要单独填公网 API 地址。
 
 只有分域、反向代理路径特殊或前后端不走同源时，才需要显式覆盖这些派生值。
+
+## 首次 Secret 显示
+
+`infra/deploy/up.sh` 只在首次生成 secret 时显示一次：
+
+```text
+APP_SECRET=...
+ADMIN_API_KEY=...
+FORUM_SSO_SECRET=...
+POSTGRES_PASSWORD=...
+```
+
+这些值会写回 `infra/compose/.env`，后续 `up.sh` 或 `update.sh` 不会再显示。第一次看到时应立即保存到密码管理器或私有部署记录。
+
+`FORUM_SSO_SECRET` 需要复制到 Discourse 的 `infra/deploy/discourse.env`，用于论坛
+DiscourseConnect；两边必须完全一致。
+
+SMTP、域名、服务器路径这类外部信息不会自动生成，仍需手工填写。
 
 ## 失败退出条件
 

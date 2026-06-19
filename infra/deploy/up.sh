@@ -26,11 +26,83 @@ fi
 if [[ ! -f "$ENV_FILE" ]]; then
   if [[ -f "$ENV_EXAMPLE" ]]; then
     cp "$ENV_EXAMPLE" "$ENV_FILE"
-    echo "已从模板生成 $ENV_FILE，请先按需回填变量后再重试。" >&2
+    chmod 600 "$ENV_FILE" 2>/dev/null || true
+    echo "已从模板生成 $ENV_FILE，请先按需回填 WEB_SOURCE_DIR、PUBLIC_ORIGIN、FORUM_ORIGIN 后再重试。" >&2
   else
     echo "未找到环境变量文件: $ENV_FILE" >&2
   fi
   exit 1
+fi
+
+generate_secret() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 32
+  else
+    od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
+  fi
+}
+
+env_file_value() {
+  local name=$1
+  awk -F= -v key="$name" '$1 == key { print substr($0, length(key) + 2); exit }' "$ENV_FILE"
+}
+
+set_env_file_value() {
+  local name=$1
+  local value=$2
+  local escaped
+  escaped=$(printf '%s\n' "$value" | sed 's/[&/\]/\\&/g')
+  if grep -q "^${name}=" "$ENV_FILE"; then
+    sed -i.bak "s/^${name}=.*/${name}=${escaped}/" "$ENV_FILE"
+    rm -f "${ENV_FILE}.bak"
+  else
+    printf '\n%s=%s\n' "$name" "$value" >> "$ENV_FILE"
+  fi
+}
+
+is_unset_secret() {
+  local value=$1
+  [[ -z "$value" || "$value" == replace-with-* || "$value" == changeme ]]
+}
+
+ensure_generated_secret() {
+  local name=$1
+  local current
+  current=$(env_file_value "$name")
+  if is_unset_secret "$current"; then
+    local generated
+    generated=$(generate_secret)
+    set_env_file_value "$name" "$generated"
+    GENERATED_SECRETS+=("${name}=${generated}")
+  fi
+}
+
+sync_default_database_url_password() {
+  local db_password=$1
+  local current
+  current=$(env_file_value DATABASE_URL)
+  if [[ -z "$current" || "$current" == *":changeme@"* ]]; then
+    set_env_file_value DATABASE_URL "postgresql://gamemulti:${db_password}@postgres:5432/gamemulti?schema=public"
+  fi
+}
+
+GENERATED_SECRETS=()
+ensure_generated_secret APP_SECRET
+ensure_generated_secret ADMIN_API_KEY
+ensure_generated_secret FORUM_SSO_SECRET
+ensure_generated_secret POSTGRES_PASSWORD
+sync_default_database_url_password "$(env_file_value POSTGRES_PASSWORD)"
+chmod 600 "$ENV_FILE" 2>/dev/null || true
+
+if [[ ${#GENERATED_SECRETS[@]} -gt 0 ]]; then
+  cat <<'EOF'
+==> 首次部署已生成以下 secret，并写入 infra/compose/.env
+==> 这是唯一一次自动显示。请现在保存到你的密码管理器或部署记录。
+EOF
+  printf '%s\n' "${GENERATED_SECRETS[@]}"
+  cat <<'EOF'
+==> 后续再次执行 up.sh/update.sh 不会重复显示这些值。
+EOF
 fi
 
 set -a

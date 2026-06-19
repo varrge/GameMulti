@@ -45,6 +45,10 @@ DISCOURSE_NOTIFICATION_EMAIL=noreply@example.com
 FORUM_SSO_SECRET=replace-with-64-hex-random-secret
 ```
 
+如果已经先在 GameMulti 服务器执行过 `bash infra/deploy/up.sh`，优先使用首次部署时
+显示的 `FORUM_SSO_SECRET`。它只会自动显示一次，后续可从服务器私有
+`infra/compose/.env` 中读取，但不要贴到公开渠道。
+
 派生规则：
 
 - `GAME_API_ORIGIN` 默认等于 `GAME_PUBLIC_ORIGIN`。
@@ -81,6 +85,9 @@ NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 如果使用 `infra/deploy/up.sh`，服务器 `infra/compose/.env` 里只需要写
 `PUBLIC_ORIGIN`、`FORUM_ORIGIN` 和 `FORUM_SSO_SECRET`；脚本会派生
 `FORUM_SSO_RETURN_URL` 和 `NEXT_PUBLIC_FORUM_ORIGIN`。
+
+如果 `FORUM_SSO_SECRET` 仍是占位值，`up.sh` 会在第一次部署时随机生成并显示一次。
+把这个值保存下来，并同步写入论坛服务器的 `infra/deploy/discourse.env`。
 
 重启主站：
 
