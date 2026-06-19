@@ -56,6 +56,7 @@ cp infra/deploy/discourse.env.example infra/deploy/discourse.env
 | `FORUM_SSO_SECRET` | DiscourseConnect shared secret | 是 |
 | `FORUM_SSO_RETURN_URL` | DiscourseConnect URL，当前应指向 GameMulti 前端中转页 | 否 |
 | `NEXT_PUBLIC_FORUM_ORIGIN` | 前端展示/跳转用论坛地址 | 否 |
+| `DISCOURSE_CONTAINER` | 论坛服务器上的 Discourse 容器名，官方默认 `app` | 否 |
 
 生成 SSO secret：
 
@@ -105,7 +106,28 @@ sudo ./discourse-setup
 
 ## DiscourseConnect 配置
 
-进入 Discourse 管理后台，配置 DiscourseConnect/SSO：
+推荐在论坛服务器上用仓库脚本配置 DiscourseConnect，减少手工填错：
+
+```bash
+bash infra/deploy/discourse_configure_sso.sh infra/deploy/discourse.env
+```
+
+前提：
+
+- Discourse 已通过官方 `discourse_docker` 安装完成。
+- Discourse 容器正在运行，官方默认容器名是 `app`；如不同，在
+  `DISCOURSE_CONTAINER` 中覆盖。
+- `infra/deploy/discourse.env` 里的 `FORUM_SSO_SECRET` 已与 GameMulti 运行环境一致。
+
+脚本会写入：
+
+- `enable_discourse_connect=true`
+- `discourse_connect_url=FORUM_SSO_RETURN_URL`
+- `discourse_connect_secret=FORUM_SSO_SECRET`
+- `force_https=true`
+- 如果 Discourse 支持，会把 GameMulti 域名加入 DiscourseConnect 允许跳转域名。
+
+也可以进入 Discourse 管理后台手工配置 DiscourseConnect/SSO：
 
 - 启用 DiscourseConnect。
 - DiscourseConnect URL 填 `https://app.example.com/forums/discourse-connect`。
@@ -230,6 +252,7 @@ Discourse 回滚：
 | 回调 404/502 | DiscourseConnect URL、主站反向代理、API 是否部署 |
 | 用户能进主站但不能进论坛 | DiscourseConnect 是否启用、consume path 是否为 `/session/sso_login` |
 | smoke 通过但真实论坛失败 | smoke 只验证协议级流程，需要再做浏览器真实跳转 |
+| 生产脚本提示容器不存在 | 确认 `docker ps` 中 Discourse 容器名，并设置 `DISCOURSE_CONTAINER` |
 
 ## 上线口径
 
