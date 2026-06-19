@@ -25,10 +25,11 @@ Default URL:
 http://127.0.0.1:3000/
 ```
 
-`DISCOURSE_HOSTNAME=auto-public` resolves the current public IP at startup and
-writes it to the ignored `.env.resolved` file used by Docker Compose. Use
-`auto-local` when you need LAN access instead, or set an explicit hostname for
-fixed DNS.
+`DISCOURSE_HOSTNAME=127.0.0.1:3000` is the safest default for same-machine
+local validation. `auto-public` resolves the current public IP at startup and
+writes it to the ignored `.env.resolved` file used by Docker Compose, but it
+only works if that public IP can route back to this machine. Use `auto-local`
+for LAN testing, or set an explicit hostname for fixed DNS.
 
 Stop:
 
