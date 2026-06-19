@@ -9,6 +9,7 @@ cp infra/forum/discourse-dev/.env.example infra/forum/discourse-dev/.env
 # Fill local SMTP/domain values in the ignored .env file.
 
 bash infra/forum/discourse-dev/dev.sh pull
+bash infra/forum/discourse-dev/dev.sh host
 bash infra/forum/discourse-dev/dev.sh up
 bash infra/forum/discourse-dev/dev.sh check
 npm run check:local-discourse
@@ -23,6 +24,11 @@ Default URL:
 ```text
 http://127.0.0.1:3000/
 ```
+
+`DISCOURSE_HOSTNAME=auto-public` resolves the current public IP at startup and
+writes it to the ignored `.env.resolved` file used by Docker Compose. Use
+`auto-local` when you need LAN access instead, or set an explicit hostname for
+fixed DNS.
 
 Stop:
 
