@@ -7,6 +7,13 @@ cd /home/yinan/.openclaw/workspace/GameMulti
 bash infra/deploy/up.sh
 ```
 
+在线更新入口：
+
+```bash
+cd /home/yinan/.openclaw/workspace/GameMulti
+bash infra/deploy/update.sh
+```
+
 论坛生产部署不走这个 dev compose。Discourse 生产接入请按
 `docs/deployment/discourse_production_runbook.md` 执行，使用
 `infra/deploy/discourse.env.example`、`infra/deploy/discourse_check_prereqs.sh`
@@ -45,6 +52,37 @@ HOST_HTTP_PORT=8080
 - 玩家账号与绑定页面为 `/account`、`/bindings`、`/bind/confirm?token=...`
 - 启动后输出 `docker compose ps`
 
+## 在线更新
+
+服务器不需要手工 `git pull`。更新代码并重启服务：
+
+```bash
+cd /home/yinan/.openclaw/workspace/GameMulti
+bash infra/deploy/update.sh
+```
+
+`infra/deploy/update.sh` 默认行为：
+
+- 从 `DEPLOY_REMOTE` / `DEPLOY_BRANCH` 拉取远端元数据，默认 `origin/develop`
+- 只允许 fast-forward 更新，避免服务器本地分叉被悄悄覆盖
+- 调用 `infra/deploy/up.sh` 重启 compose 服务
+- 访问 `DEPLOY_HEALTH_URL` 做健康检查，默认 `http://127.0.0.1:8080/api/healthz`
+
+可在 `infra/compose/.env` 调整：
+
+```env
+DEPLOY_REMOTE=origin
+DEPLOY_BRANCH=develop
+DEPLOY_UPDATE_MODE=ff-only
+DEPLOY_HEALTH_URL=http://127.0.0.1:8080/api/healthz
+DEPLOY_HEALTH_ATTEMPTS=30
+DEPLOY_HEALTH_DELAY_SECONDS=3
+```
+
+如果服务器确认只作为部署目录、不会保留本地代码改动，可以把
+`DEPLOY_UPDATE_MODE=reset`，脚本会强制对齐到远端分支。生产首次建议保持
+`ff-only`。
+
 ## 失败退出条件
 
 出现以下任一情况会直接退出：
@@ -54,6 +92,8 @@ HOST_HTTP_PORT=8080
 - 缺少 `infra/compose/.env`
 - `WEB_SOURCE_DIR` 未设置、目录不存在，或目录下缺少 `package.json`
 - 缺少 `infra/nginx/default.conf`
+- 在线更新时，已跟踪文件存在服务器本地改动
+- 在线更新时，当前分支无法 fast-forward 到远端目标分支
 
 ## 现场验证
 
