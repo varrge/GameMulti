@@ -37,5 +37,5 @@ export function getDefaultPostLoginRedirect() {
 }
 
 export function getNavbarForumHref() {
-  return getForumEntryUrl();
+  return "/forums";
 }

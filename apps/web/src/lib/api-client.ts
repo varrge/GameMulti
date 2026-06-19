@@ -99,6 +99,72 @@ export type AdminPluginEvent = {
   };
 };
 
+export type ForumAccount = {
+  id: string;
+  forumProvider: string;
+  forumUserId: string;
+  forumUsername: string;
+  forumEmail: string | null;
+  externalUid: string;
+  syncStatus: string;
+  mappingSource: string;
+  lastSyncedAt: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ForumAccountStatus = {
+  provider: string;
+  forumOrigin: string;
+  forumEntryUrl: string;
+  account: ForumAccount | null;
+  connected: boolean;
+  ssoStartUrl: string;
+};
+
+export type ForumSsoStart = {
+  provider: string;
+  forumSsoUrl: string;
+  ticket: string;
+  expiresIn: number;
+  account: ForumAccount;
+  payload: string;
+  sig: string;
+};
+
+export type AdminForumSummary = {
+  counts: {
+    accounts: number;
+    activeAccounts: number;
+    failedAccounts: number;
+  };
+  recentAccounts: Array<ForumAccount & {
+    user: {
+      id: string;
+      username: string;
+      email: string;
+      status: string;
+    };
+  }>;
+  recentTickets: Array<{
+    id: string;
+    forumProvider: string;
+    ticket: string;
+    status: string;
+    redirectUrl: string | null;
+    expiresAt: string;
+    consumedAt: string | null;
+    createdAt: string;
+    user: {
+      id: string;
+      username: string;
+      email: string;
+    };
+    forumAccount: ForumAccount;
+  }>;
+};
+
 type ApiErrorBody = {
   message?: string | string[];
   error?: string;
@@ -242,6 +308,18 @@ export const api = {
     return request<GameBinding[]>("/me/game-bindings");
   },
 
+  getForumAccount() {
+    return request<ForumAccountStatus>("/me/forum-account");
+  },
+
+  getForumEntry() {
+    return request<ForumAccountStatus>("/forum/entry");
+  },
+
+  startForumSso(returnPath = "/") {
+    return request<ForumSsoStart>(`/forum/sso/start?returnPath=${encodeURIComponent(returnPath)}`);
+  },
+
   adminListGameServers(adminKey: string) {
     return adminRequest<AdminGameServer[]>("/admin/game-servers", adminKey);
   },
@@ -253,5 +331,9 @@ export const api = {
     if (filters.player) query.set("player", filters.player);
     const suffix = query.toString() ? `?${query.toString()}` : "";
     return adminRequest<AdminPluginEvent[]>(`/admin/plugin-events${suffix}`, adminKey);
+  },
+
+  adminForumSummary(adminKey: string) {
+    return adminRequest<AdminForumSummary>("/admin/forum/summary", adminKey);
   },
 };

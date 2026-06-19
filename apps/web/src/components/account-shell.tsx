@@ -1,9 +1,9 @@
 "use client";
 
-import { CheckCircle2, Gamepad2, LogIn, LogOut, RefreshCw, Ticket, UserPlus } from "lucide-react";
+import { CheckCircle2, ExternalLink, Gamepad2, LogIn, LogOut, MessageSquare, RefreshCw, Ticket, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { api, ApiUser, clearAuth, getAuthToken, getStoredUser, storeAuth } from "@/src/lib/api-client";
+import { api, ApiUser, clearAuth, ForumAccountStatus, getAuthToken, getStoredUser, storeAuth } from "@/src/lib/api-client";
 
 function Field(props: {
   label: string;
@@ -36,6 +36,7 @@ export function AccountShell() {
   const [inviteCode, setInviteCode] = useState("");
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [forumStatus, setForumStatus] = useState<ForumAccountStatus | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export function AccountShell() {
       const result = await api.me();
       setUser(result.user);
       storeAuth({ user: result.user, token: getAuthToken() || "" });
+      await refreshForumStatus();
     } catch (error) {
       clearAuth();
       setUser(null);
@@ -69,6 +71,7 @@ export function AccountShell() {
       const result = await api.login({ login, password: loginPassword });
       storeAuth(result);
       setUser(result.user);
+      await refreshForumStatus();
       setMessage("已登录");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "登录失败");
@@ -85,6 +88,7 @@ export function AccountShell() {
       const result = await api.register({ username, email, password: registerPassword, inviteCode });
       storeAuth(result);
       setUser(result.user);
+      await refreshForumStatus();
       setMessage("注册完成，已自动登录");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "注册失败");
@@ -107,7 +111,31 @@ export function AccountShell() {
   function handleLogout() {
     clearAuth();
     setUser(null);
+    setForumStatus(null);
     setMessage("已退出");
+  }
+
+  async function refreshForumStatus() {
+    if (!getAuthToken()) return;
+    setForumStatus(await api.getForumAccount());
+  }
+
+  async function enterForum() {
+    if (!getAuthToken()) {
+      setMessage("请先登录账号再进入论坛");
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+    try {
+      const result = await api.startForumSso("/");
+      window.location.href = result.forumSsoUrl;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "论坛入口生成失败");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -133,35 +161,63 @@ export function AccountShell() {
         {message && <div className="rounded-sm border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80">{message}</div>}
 
         {user ? (
-          <section className="grid gap-6 rounded-sm border border-white/10 bg-white/[0.04] p-6 md:grid-cols-[1fr_auto] md:items-center">
-            <div>
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="h-6 w-6 text-[#00ff99]" />
-                <h2 className="text-2xl font-black uppercase italic">{user.username}</h2>
+          <div className="grid gap-6">
+            <section className="grid gap-6 rounded-sm border border-white/10 bg-white/[0.04] p-6 md:grid-cols-[1fr_auto] md:items-center">
+              <div>
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-6 w-6 text-[#00ff99]" />
+                  <h2 className="text-2xl font-black uppercase italic">{user.username}</h2>
+                </div>
+                <p className="mt-3 text-sm text-white/55">{user.email}</p>
+                <p className="mt-1 text-xs font-bold uppercase tracking-[0.2em] text-white/35">状态：{user.status}</p>
               </div>
-              <p className="mt-3 text-sm text-white/55">{user.email}</p>
-              <p className="mt-1 text-xs font-bold uppercase tracking-[0.2em] text-white/35">状态：{user.status}</p>
-            </div>
-            <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={refreshMe}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-sm border border-white/15 px-4 py-3 text-sm font-bold uppercase tracking-[0.18em] transition hover:border-white/40 disabled:opacity-50"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  刷新
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="inline-flex items-center gap-2 rounded-sm bg-white px-4 py-3 text-sm font-bold uppercase tracking-[0.18em] text-black transition hover:bg-[#f27d26]"
+                >
+                  <LogOut className="h-4 w-4" />
+                  退出
+                </button>
+              </div>
+            </section>
+
+            <section className="grid gap-6 rounded-sm border border-white/10 bg-white/[0.04] p-6 md:grid-cols-[1fr_auto] md:items-center">
+              <div>
+                <div className="flex items-center gap-3">
+                  <MessageSquare className="h-5 w-5 text-[#f27d26]" />
+                  <h2 className="text-2xl font-black uppercase italic">论坛账号</h2>
+                </div>
+                <p className="mt-3 text-sm text-white/55">
+                  {forumStatus?.account
+                    ? `${forumStatus.account.forumUsername} · ${forumStatus.account.syncStatus}`
+                    : "尚未创建论坛映射，进入论坛时会自动生成。"}
+                </p>
+                <p className="mt-1 text-xs font-bold uppercase tracking-[0.2em] text-white/35">
+                  {forumStatus?.forumOrigin || "forum pending"}
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={refreshMe}
+                onClick={enterForum}
                 disabled={loading}
-                className="inline-flex items-center gap-2 rounded-sm border border-white/15 px-4 py-3 text-sm font-bold uppercase tracking-[0.18em] transition hover:border-white/40 disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-sm bg-[#f27d26] px-5 py-3 text-sm font-black uppercase tracking-[0.2em] text-black transition hover:bg-white disabled:opacity-50"
               >
-                <RefreshCw className="h-4 w-4" />
-                刷新
+                <ExternalLink className="h-4 w-4" />
+                进入论坛
               </button>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="inline-flex items-center gap-2 rounded-sm bg-white px-4 py-3 text-sm font-bold uppercase tracking-[0.18em] text-black transition hover:bg-[#f27d26]"
-              >
-                <LogOut className="h-4 w-4" />
-                退出
-              </button>
-            </div>
-          </section>
+            </section>
+          </div>
         ) : (
           <section className="grid gap-6 lg:grid-cols-2">
             <form onSubmit={handleLogin} className="rounded-sm border border-white/10 bg-white/[0.04] p-6">

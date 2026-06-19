@@ -159,6 +159,58 @@ export class AdminService {
     });
   }
 
+  async getForumSummary() {
+    const [
+      accountCount,
+      activeAccountCount,
+      failedAccountCount,
+      recentAccounts,
+      recentTickets,
+    ] = await Promise.all([
+      this.prisma.forumAccount.count(),
+      this.prisma.forumAccount.count({ where: { syncStatus: 'active' } }),
+      this.prisma.forumAccount.count({ where: { syncStatus: 'sync_failed' } }),
+      this.prisma.forumAccount.findMany({
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              status: true,
+            },
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 10,
+      }),
+      this.prisma.forumSsoTicket.findMany({
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+            },
+          },
+          forumAccount: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+    ]);
+
+    return {
+      counts: {
+        accounts: accountCount,
+        activeAccounts: activeAccountCount,
+        failedAccounts: failedAccountCount,
+      },
+      recentAccounts,
+      recentTickets,
+    };
+  }
+
   private buildUserSearchWhere(keyword?: string): Prisma.UserWhereInput {
     const normalized = String(keyword || '').trim();
     if (!normalized) {

@@ -1,10 +1,11 @@
 "use client";
 
-import { Activity, Database, Gamepad2, KeyRound, RefreshCw, Search, Server, ShieldCheck } from "lucide-react";
+import { Activity, Database, Gamepad2, KeyRound, MessageSquare, RefreshCw, Search, Server, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AdminGameServer,
+  AdminForumSummary,
   AdminPluginEvent,
   api,
   clearAdminKey,
@@ -36,6 +37,7 @@ export function AdminShell() {
   const [adminKey, setAdminKey] = useState("");
   const [servers, setServers] = useState<AdminGameServer[]>([]);
   const [events, setEvents] = useState<AdminPluginEvent[]>([]);
+  const [forumSummary, setForumSummary] = useState<AdminForumSummary | null>(null);
   const [serverCode, setServerCode] = useState("");
   const [eventType, setEventType] = useState("");
   const [player, setPlayer] = useState("");
@@ -67,12 +69,14 @@ export function AdminShell() {
     setMessage(null);
     try {
       storeAdminKey(key);
-      const [serverResult, eventResult] = await Promise.all([
+      const [serverResult, eventResult, forumResult] = await Promise.all([
         api.adminListGameServers(key),
         api.adminListPluginEvents(key, { serverCode, eventType, player }),
+        api.adminForumSummary(key),
       ]);
       setServers(serverResult);
       setEvents(eventResult);
+      setForumSummary(forumResult);
       setMessage("已刷新");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "读取管理数据失败");
@@ -91,6 +95,7 @@ export function AdminShell() {
     setAdminKey("");
     setServers([]);
     setEvents([]);
+    setForumSummary(null);
     setMessage("已清除 Admin Key");
   }
 
@@ -150,6 +155,53 @@ export function AdminShell() {
           <Stat label="健康心跳" value={totals.online} />
           <Stat label="事件总数" value={totals.events} />
           <Stat label="绑定数" value={totals.bindings} />
+        </section>
+
+        <section className="rounded-sm border border-white/10 bg-white/[0.04] p-6">
+          <div className="mb-6 flex items-center gap-3">
+            <MessageSquare className="h-5 w-5 text-[#f27d26]" />
+            <h2 className="text-2xl font-black uppercase italic">论坛联通</h2>
+          </div>
+
+          {!forumSummary ? (
+            <p className="text-sm text-white/50">暂无论坛联通数据。</p>
+          ) : (
+            <div className="grid gap-6 lg:grid-cols-[280px_1fr_1fr]">
+              <div className="grid gap-3">
+                <Stat label="论坛账号" value={forumSummary.counts.accounts} />
+                <Stat label="已激活" value={forumSummary.counts.activeAccounts} />
+                <Stat label="同步失败" value={forumSummary.counts.failedAccounts} />
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-white/45">最近账号</h3>
+                <div className="grid gap-2">
+                  {forumSummary.recentAccounts.length === 0 ? (
+                    <p className="text-sm text-white/45">暂无论坛账号。</p>
+                  ) : forumSummary.recentAccounts.map((account) => (
+                    <div key={account.id} className="border border-white/10 bg-black/20 p-3 text-sm">
+                      <div className="font-bold text-white">{account.forumUsername}</div>
+                      <div className="mt-1 text-white/45">{account.user.username} · {account.syncStatus}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-white/45">最近 SSO</h3>
+                <div className="grid gap-2">
+                  {forumSummary.recentTickets.length === 0 ? (
+                    <p className="text-sm text-white/45">暂无 SSO ticket。</p>
+                  ) : forumSummary.recentTickets.map((ticket) => (
+                    <div key={ticket.id} className="border border-white/10 bg-black/20 p-3 text-sm">
+                      <div className="font-bold text-white">{ticket.status}</div>
+                      <div className="mt-1 text-white/45">{ticket.user.username} · {formatDate(ticket.createdAt)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="rounded-sm border border-white/10 bg-white/[0.04] p-6">

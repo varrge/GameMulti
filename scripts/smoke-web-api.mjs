@@ -6,6 +6,7 @@ const apiBaseUrl = stripTrailingSlash(process.env.API_BASE_URL || `${appBaseUrl}
 const pluginClientKey = process.env.PLUGIN_CLIENT_KEY || 'demo-client';
 const pluginClientSecret = process.env.PLUGIN_CLIENT_SECRET || 'demo-secret';
 const adminApiKey = process.env.ADMIN_API_KEY || 'local-dev-admin-key';
+const forumSsoSecret = process.env.FORUM_SSO_SECRET || 'local-dev-forum-sso-secret';
 
 const runId = Date.now().toString(36);
 const username = `smoke_${runId}`;
@@ -23,6 +24,8 @@ const summary = {
   pluginTelemetry: false,
   adminServers: 0,
   adminEvents: 0,
+  forumConnected: false,
+  forumAccounts: 0,
 };
 
 async function main() {
@@ -57,6 +60,8 @@ async function main() {
 
   const me = await getJson('/me', login.token);
   assert(me?.user?.username === username, 'me endpoint returned a different user');
+
+  await assertForumSso(login.token, me.user);
 
   await assertPluginReplayRejected();
   await assertPluginTelemetryAccepted();
@@ -151,6 +156,41 @@ async function assertAdminTelemetryVisible() {
   const events = await getJson(`/admin/plugin-events?serverCode=cn-mc-01&player=${encodeURIComponent(`smoke-player-${runId}`)}`, { admin: true });
   assert(Array.isArray(events) && events.length >= 1, 'admin plugin events endpoint returned no matching events');
   summary.adminEvents = events.length;
+
+  const forum = await getJson('/admin/forum/summary', { admin: true });
+  assert(forum?.counts?.accounts >= 1, 'admin forum summary did not include forum accounts');
+  summary.forumAccounts = forum.counts.accounts;
+}
+
+async function assertForumSso(token, user) {
+  const unauthenticated = await fetch(`${apiBaseUrl}/forum/entry`);
+  assert(unauthenticated.status === 401, `unauthenticated forum entry returned ${unauthenticated.status}, expected 401`);
+
+  const before = await getJson('/me/forum-account', token);
+  assert(before?.provider === 'discourse', 'forum account status did not return discourse provider');
+
+  const start = await getJson('/forum/sso/start', token);
+  assert(start?.forumSsoUrl && start?.ticket, 'forum sso start did not return url and ticket');
+
+  const callbackPayload = encodeForumSsoPayload({
+    nonce: start.ticket,
+    external_id: user.id,
+    username: user.username,
+    email: user.email,
+    name: user.username,
+  });
+
+  const badCallback = await fetch(`${apiBaseUrl}/forum/sso/callback?sso=${encodeURIComponent(callbackPayload)}&sig=bad`);
+  assert(badCallback.status === 401, `bad forum callback returned ${badCallback.status}, expected 401`);
+
+  const callbackSig = signForumSsoPayload(callbackPayload, forumSsoSecret);
+  const callback = await getJson(`/forum/sso/callback?sso=${encodeURIComponent(callbackPayload)}&sig=${callbackSig}`);
+  assert(callback?.ok === true, 'forum callback did not return ok');
+  assert(callback?.account?.forumUsername === user.username, 'forum callback mapped a different username');
+
+  const after = await getJson('/me/forum-account', token);
+  assert(after?.connected === true, 'forum account status is not connected after callback');
+  summary.forumConnected = true;
 }
 
 async function sendPluginBindingSessionRequest(params) {
@@ -270,6 +310,14 @@ function signPluginRequest(input, secret) {
     bodyHash,
   ].join('\n');
 
+  return createHmac('sha256', secret).update(payload).digest('hex');
+}
+
+function encodeForumSsoPayload(params) {
+  return Buffer.from(new URLSearchParams(params).toString(), 'utf8').toString('base64');
+}
+
+function signForumSsoPayload(payload, secret) {
   return createHmac('sha256', secret).update(payload).digest('hex');
 }
 

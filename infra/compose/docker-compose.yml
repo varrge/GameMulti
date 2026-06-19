@@ -47,8 +47,11 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://gamemulti:changeme@postgres:5432/gamemulti?schema=public}
       APP_URL: ${APP_URL:-http://localhost:8080}
       API_URL: ${API_URL:-http://localhost:8080/api}
+      FORUM_PROVIDER: ${FORUM_PROVIDER:-discourse}
       FORUM_ORIGIN: ${FORUM_ORIGIN:-https://bbs.example.com}
       FORUM_ENTRY_PATH: ${FORUM_ENTRY_PATH:-/}
+      FORUM_SSO_SECRET: ${FORUM_SSO_SECRET:-local-dev-forum-sso-secret}
+      FORUM_SSO_RETURN_URL: ${FORUM_SSO_RETURN_URL:-http://127.0.0.1:8080/api/forum/sso/callback}
     volumes:
       - ../../apps/api:/app
       - api_node_modules:/app/node_modules

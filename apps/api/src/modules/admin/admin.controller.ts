@@ -30,4 +30,9 @@ export class AdminController {
   ) {
     return this.adminService.listPluginEvents({ serverCode, eventType, player });
   }
+
+  @Get('forum/summary')
+  getForumSummary() {
+    return this.adminService.getForumSummary();
+  }
 }
