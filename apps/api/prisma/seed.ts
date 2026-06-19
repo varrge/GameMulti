@@ -1,5 +1,9 @@
 import { PrismaClient } from '@prisma/client';
+import { encryptSecret } from '../src/security/secret-vault';
+
 const prisma = new PrismaClient();
+const appSecret = process.env.APP_SECRET || 'replace-with-a-long-random-secret';
+const demoPluginSecret = 'demo-secret';
 
 async function main() {
   const game = await prisma.game.upsert({
@@ -27,11 +31,13 @@ async function main() {
 
   await prisma.serverPluginClient.upsert({
     where: { clientKey: 'demo-client' },
-    update: {},
+    update: {
+      clientSecretHash: encryptSecret(demoPluginSecret, appSecret),
+    },
     create: {
       serverId: server.id,
       clientKey: 'demo-client',
-      clientSecretHash: 'demo-secret',
+      clientSecretHash: encryptSecret(demoPluginSecret, appSecret),
       pluginVersion: '0.1.0',
       protocolVersion: '2026-06-mvp',
       status: 'active',

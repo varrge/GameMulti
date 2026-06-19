@@ -179,6 +179,7 @@ model ServerPluginClient {
   id                String   @id @default(cuid())
   serverId          String
   clientKey         String   @unique
+  /// Stores an encrypted shared secret payload. The legacy field name is kept to avoid an early migration rename.
   clientSecretHash  String
   pluginVersion     String?
   protocolVersion   String?

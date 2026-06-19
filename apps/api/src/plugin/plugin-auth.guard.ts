@@ -1,6 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { decryptSecretIfNeeded } from '../security/secret-vault';
 import { verifyPluginSignature } from '../security/plugin-signature';
 
 const MAX_CLOCK_SKEW_SECONDS = 5 * 60;
@@ -8,7 +10,10 @@ const NONCE_RETENTION_SECONDS = MAX_CLOCK_SKEW_SECONDS * 2;
 
 @Injectable()
 export class PluginAuthGuard implements CanActivate {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<{
@@ -55,6 +60,7 @@ export class PluginAuthGuard implements CanActivate {
     }
 
     const body = this.canonicalBody(request.body);
+    const pluginSecret = this.decryptPluginSecret(client.clientSecretHash);
     const valid = verifyPluginSignature(
       {
         method: request.method,
@@ -63,7 +69,7 @@ export class PluginAuthGuard implements CanActivate {
         nonce,
         body,
       },
-      client.clientSecretHash,
+      pluginSecret,
       signature,
     );
 
@@ -128,5 +134,14 @@ export class PluginAuthGuard implements CanActivate {
       return '';
     }
     return JSON.stringify(body);
+  }
+
+  private decryptPluginSecret(value: string) {
+    try {
+      const appSecret = this.config.get<string>('APP_SECRET', 'replace-with-a-long-random-secret');
+      return decryptSecretIfNeeded(value, appSecret);
+    } catch {
+      throw new UnauthorizedException('Plugin client secret is not readable');
+    }
   }
 }

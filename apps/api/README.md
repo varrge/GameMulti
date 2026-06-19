@@ -147,6 +147,8 @@ client_key=demo-client
 client_secret=demo-secret
 ```
 
+插件共享密钥不会以明文写入数据库。seed 会用 `APP_SECRET` 派生出的 AES-GCM key 加密 `demo-secret` 后存入 `server_plugin_clients.clientSecretHash`；该字段保留历史命名，内容实际为 `enc:v1:...` 加密载荷。旧的明文值仍可被读取，用于本地数据平滑过渡。
+
 ## 验收示例
 
 使用 seed 邀请码注册：
