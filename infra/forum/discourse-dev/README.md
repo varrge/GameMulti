@@ -70,6 +70,8 @@ The command configures the local Discourse container for GameMulti:
 - disables HTTPS forcing and the first-run wizard for local validation,
 - disables external avatar fetching so local letter avatars do not depend on
   Discourse CDN URLs,
+- sets the default Discourse locale to `DISCOURSE_DEFAULT_LOCALE` (`zh_CN` by
+  default),
 - promotes the local admin email if that user already exists.
 
 For local browser validation, keep `FORUM_SSO_SECRET` aligned with

@@ -62,6 +62,7 @@ bash infra/forum/discourse-dev/dev.sh configure-local-sso
 `FORUM_SSO_SECRET`、关闭本地 HTTPS 强制、关闭外部头像 CDN，并在管理员用户已存在时
 把 `DISCOURSE_LOCAL_ADMIN_EMAIL` 或 `DISCOURSE_DEVELOPER_EMAILS` 的第一个邮箱提升为
 管理员。
+同时会把 Discourse 默认语言设置为 `DISCOURSE_DEFAULT_LOCALE`，默认是 `zh_CN`。
 
 如果脚本输出 `admin_user_found: false`，说明管理员用户还没创建。打开：
 

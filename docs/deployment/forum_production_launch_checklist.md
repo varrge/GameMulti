@@ -14,6 +14,7 @@
 | 管理员邮箱 | `admin@example.com` | Discourse 初始化和证书通知 |
 | SMTP 地址/端口/账号/密码 | provider value | Discourse 生产必须可发信 |
 | SSO secret | `openssl rand -hex 32` | GameMulti 和 Discourse 必须完全一致 |
+| 默认语言 | `zh_CN` | Discourse 内置简体中文语言包 |
 
 阻断条件：
 
@@ -37,6 +38,8 @@ GAME_PUBLIC_ORIGIN=https://app.example.com
 DISCOURSE_HOSTNAME=forum.example.com
 DISCOURSE_DEVELOPER_EMAILS=admin@example.com
 LETSENCRYPT_ACCOUNT_EMAIL=admin@example.com
+DISCOURSE_DEFAULT_LOCALE=zh_CN
+DISCOURSE_ALLOW_USER_LOCALE=true
 DISCOURSE_SMTP_ADDRESS=smtp.example.com
 DISCOURSE_SMTP_PORT=587
 DISCOURSE_SMTP_USER_NAME=postmaster@example.com
@@ -57,6 +60,14 @@ FORUM_SSO_SECRET=replace-with-64-hex-random-secret
 - `FORUM_SSO_RETURN_URL` 默认等于 `GAME_PUBLIC_ORIGIN + /forums/discourse-connect`。
 
 只有分域、反向代理路径特殊或论坛入口和 hostname 不一致时，才显式覆盖这些值。
+
+汉化规则：
+
+- 默认使用 Discourse 内置 `zh_CN`，不安装第三方汉化插件。
+- `discourse_configure_sso.sh` 会写入 `default_locale=zh_CN`。
+- `set_locale_from_accept_language_header` 会关闭，匿名用户默认看到中文。
+- `DISCOURSE_ALLOW_USER_LOCALE=true` 时，登录用户仍可在个人偏好里选择其他语言。
+- 分类名、站点说明、服务条款、隐私政策、公告帖等业务内容不会自动翻译，需要运营手工编辑。
 
 本地预检：
 
@@ -136,6 +147,8 @@ https://forum.example.com
 cd /path/to/GameMulti
 bash infra/deploy/discourse_configure_sso.sh infra/deploy/discourse.env
 ```
+
+这个脚本同时会配置论坛默认语言。
 
 如果脚本提示容器不存在：
 

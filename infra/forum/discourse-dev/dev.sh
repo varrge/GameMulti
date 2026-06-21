@@ -181,6 +181,8 @@ configure_local_sso() {
   local sso_secret=${FORUM_SSO_SECRET:-local-dev-forum-sso-secret}
   local admin_email=${DISCOURSE_LOCAL_ADMIN_EMAIL:-${DISCOURSE_DEVELOPER_EMAILS%%,*}}
   local site_name=${DISCOURSE_LOCAL_SITE_NAME:-GameMulti Local Forum}
+  local default_locale=${DISCOURSE_DEFAULT_LOCALE:-zh_CN}
+  local allow_user_locale=${DISCOURSE_ALLOW_USER_LOCALE:-true}
 
   if [[ -z "$admin_email" ]]; then
     echo "DISCOURSE_DEVELOPER_EMAILS or DISCOURSE_LOCAL_ADMIN_EMAIL is required" >&2
@@ -192,7 +194,14 @@ configure_local_sso() {
     -e GM_FORUM_SSO_SECRET="$sso_secret" \
     -e GM_DISCOURSE_ADMIN_EMAIL="$admin_email" \
     -e GM_DISCOURSE_SITE_NAME="$site_name" \
+    -e GM_DISCOURSE_DEFAULT_LOCALE="$default_locale" \
+    -e GM_DISCOURSE_ALLOW_USER_LOCALE="$allow_user_locale" \
     discourse bash -lc 'cd /var/www/discourse && bundle exec rails runner -' <<'RUBY'
+def env_bool(name, default)
+  value = ENV.fetch(name, default.to_s).downcase
+  %w[1 true yes on].include?(value)
+end
+
 settings = {
   enable_discourse_connect: true,
   discourse_connect_url: ENV.fetch("GM_FORUM_SSO_RETURN_URL"),
@@ -209,6 +218,17 @@ settings = {
 
 settings.each do |key, value|
   SiteSetting.public_send("#{key}=", value)
+end
+
+locale_settings = {
+  default_locale: ENV.fetch("GM_DISCOURSE_DEFAULT_LOCALE", "zh_CN"),
+  allow_user_locale: env_bool("GM_DISCOURSE_ALLOW_USER_LOCALE", true),
+  set_locale_from_accept_language_header: false,
+}
+
+locale_settings.each do |key, value|
+  setter = "#{key}="
+  SiteSetting.public_send(setter, value) if SiteSetting.respond_to?(setter)
 end
 
 admin_email = ENV.fetch("GM_DISCOURSE_ADMIN_EMAIL")
@@ -229,6 +249,7 @@ puts({
   ok: true,
   discourse_connect_enabled: SiteSetting.enable_discourse_connect,
   discourse_connect_url: SiteSetting.discourse_connect_url,
+  default_locale: SiteSetting.respond_to?(:default_locale) ? SiteSetting.default_locale : nil,
   admin_email: admin_email,
   admin_user_found: !user.nil?,
 }.to_json)
