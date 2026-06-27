@@ -56,30 +56,30 @@ enum ForumSsoTicketStatus {
 }
 
 model User {
-  id                  String     @id @default(cuid())
-  username            String     @unique
-  email               String     @unique
-  passwordHash        String?
-  status              UserStatus @default(active)
-  source              String     @default("invite_register")
-  invitedByUserId     String?
-  invitationCodeId    String?
-  registerIp          String?
-  registerUserAgent   String?
-  lastLoginAt         DateTime?
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
+  id                String     @id @default(cuid())
+  username          String     @unique
+  email             String     @unique
+  passwordHash      String?
+  status            UserStatus @default(active)
+  source            String     @default("invite_register")
+  invitedByUserId   String?
+  invitationCodeId  String?
+  registerIp        String?
+  registerUserAgent String?
+  lastLoginAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
-  invitedBy           User?      @relation("UserInvites", fields: [invitedByUserId], references: [id])
-  invitees            User[]     @relation("UserInvites")
-  invitationCode      InvitationCode? @relation(fields: [invitationCodeId], references: [id])
+  invitedBy           User?                 @relation("UserInvites", fields: [invitedByUserId], references: [id])
+  invitees            User[]                @relation("UserInvites")
+  invitationCode      InvitationCode?       @relation(fields: [invitationCodeId], references: [id])
   authAccounts        UserAuthAccount[]
   invitationUsages    InvitationCodeUsage[]
   gameBindings        UserGameBinding[]
-  usedBindingSessions BindingSession[] @relation("BindingSessionUsedByUser")
+  usedBindingSessions BindingSession[]      @relation("BindingSessionUsedByUser")
   forumAccounts       ForumAccount[]
   forumTickets        ForumSsoTicket[]
-  auditLogs           AuditLog[] @relation("AuditActor")
+  auditLogs           AuditLog[]            @relation("AuditActor")
 
   @@index([status, createdAt])
   @@index([invitedByUserId])
@@ -96,7 +96,7 @@ model UserAuthAccount {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  user              User         @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@unique([provider, providerAccountId])
   @@index([userId, provider])
@@ -117,8 +117,8 @@ model InvitationCode {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
-  users       User[]
-  usages      InvitationCodeUsage[]
+  users  User[]
+  usages InvitationCodeUsage[]
 
   @@index([status, expiresAt])
   @@index([batchId])
@@ -133,20 +133,20 @@ model InvitationCodeUsage {
   usedUserAgent    String?
   usedAt           DateTime @default(now())
 
-  invitationCode   InvitationCode @relation(fields: [invitationCodeId], references: [id])
-  user             User           @relation(fields: [userId], references: [id])
+  invitationCode InvitationCode @relation(fields: [invitationCodeId], references: [id])
+  user           User           @relation(fields: [userId], references: [id])
 
   @@index([invitationCodeId, usedAt])
   @@index([inviterUserId, usedAt])
 }
 
 model Game {
-  id              String   @id @default(cuid())
-  code            String   @unique
-  name            String
-  status          String   @default("active")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   accounts        GameAccount[]
   servers         GameServer[]
@@ -154,20 +154,20 @@ model Game {
 }
 
 model GameServer {
-  id              String   @id @default(cuid())
-  gameId          String
-  serverCode      String   @unique
-  serverName      String
-  region          String?
-  endpointHost    String?
-  endpointPort    Int?
-  adapterType     String?
-  status          String   @default("active")
-  meta            Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           String   @id @default(cuid())
+  gameId       String
+  serverCode   String   @unique
+  serverName   String
+  region       String?
+  endpointHost String?
+  endpointPort Int?
+  adapterType  String?
+  status       String   @default("active")
+  meta         Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  game            Game     @relation(fields: [gameId], references: [id])
+  game            Game                  @relation(fields: [gameId], references: [id])
   pluginClients   ServerPluginClient[]
   bindingSessions BindingSession[]
   userBindings    UserGameBinding[]
@@ -178,36 +178,36 @@ model GameServer {
 }
 
 model ServerPluginClient {
-  id                String   @id @default(cuid())
-  serverId          String
-  clientKey         String   @unique
+  id               String    @id @default(cuid())
+  serverId         String
+  clientKey        String    @unique
   /// Stores an encrypted shared secret payload. The legacy field name is kept to avoid an early migration rename.
-  clientSecretHash  String
-  pluginVersion     String?
-  protocolVersion   String?
-  lastHeartbeatAt   DateTime?
-  status            String   @default("active")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  clientSecretHash String
+  pluginVersion    String?
+  protocolVersion  String?
+  lastHeartbeatAt  DateTime?
+  status           String    @default("active")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  server            GameServer @relation(fields: [serverId], references: [id])
-  bindingSessions   BindingSession[]
-  requestNonces     PluginRequestNonce[]
-  pluginEvents      PluginEvent[]
-  heartbeats        GameServerHeartbeat[]
+  server          GameServer            @relation(fields: [serverId], references: [id])
+  bindingSessions BindingSession[]
+  requestNonces   PluginRequestNonce[]
+  pluginEvents    PluginEvent[]
+  heartbeats      GameServerHeartbeat[]
 
   @@index([serverId, status])
 }
 
 model PluginRequestNonce {
-  id              String   @id @default(cuid())
-  pluginClientId  String
-  nonce           String
-  timestamp       DateTime
-  expiresAt       DateTime
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  pluginClientId String
+  nonce          String
+  timestamp      DateTime
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
 
-  pluginClient    ServerPluginClient @relation(fields: [pluginClientId], references: [id])
+  pluginClient ServerPluginClient @relation(fields: [pluginClientId], references: [id])
 
   @@unique([pluginClientId, nonce])
   @@index([expiresAt])
@@ -224,49 +224,55 @@ model GameAccount {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  game                 Game     @relation(fields: [gameId], references: [id])
-  userBindings         UserGameBinding[]
+  game         Game              @relation(fields: [gameId], references: [id])
+  userBindings UserGameBinding[]
 
   @@unique([gameId, platform, normalizedGameUserId])
   @@index([gameId, platform, gameUserId])
 }
 
 model BindingSession {
-  id                     String               @id @default(cuid())
-  gameId                 String
-  serverId               String
-  pluginClientId         String
-  gameUserId             String
-  platform               String
-  displayName            String?
-  bindMode               String
-  token                  String               @unique
-  pairCode               String               @unique
-  status                 BindingSessionStatus @default(pending)
-  gameAccountSnapshot    Json?
-  expiresAt              DateTime
-  usedAt                 DateTime?
-  usedByUserId           String?
-  confirmedBindingId     String?
-  confirmedGameAccountId String?
-  createdIp              String?
-  createdAt              DateTime             @default(now())
-  updatedAt              DateTime             @updatedAt
+  id                      String               @id @default(cuid())
+  gameId                  String
+  serverId                String
+  pluginClientId          String
+  gameUserId              String
+  platform                String
+  displayName             String?
+  bindMode                String
+  token                   String               @unique
+  pairCode                String               @unique
+  status                  BindingSessionStatus @default(pending)
+  gameAccountSnapshot     Json?
+  expiresAt               DateTime
+  usedAt                  DateTime?
+  usedByUserId            String?
+  usedByDiscourseUserId   String?
+  usedByDiscourseUsername String?
+  confirmedBindingId      String?
+  confirmedGameAccountId  String?
+  createdIp               String?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
 
-  game                   Game                 @relation(fields: [gameId], references: [id])
-  server                 GameServer           @relation(fields: [serverId], references: [id])
-  pluginClient           ServerPluginClient   @relation(fields: [pluginClientId], references: [id])
-  usedByUser             User?                @relation("BindingSessionUsedByUser", fields: [usedByUserId], references: [id])
+  game         Game               @relation(fields: [gameId], references: [id])
+  server       GameServer         @relation(fields: [serverId], references: [id])
+  pluginClient ServerPluginClient @relation(fields: [pluginClientId], references: [id])
+  usedByUser   User?              @relation("BindingSessionUsedByUser", fields: [usedByUserId], references: [id])
 
   @@index([token])
   @@index([pairCode])
   @@index([status, expiresAt])
   @@index([gameId, platform, gameUserId])
+  @@index([usedByDiscourseUserId, status])
 }
 
 model UserGameBinding {
   id                  String                @id @default(cuid())
-  userId              String
+  userId              String?
+  discourseUserId     String?
+  discourseUsername   String?
+  discourseEmail      String?
   gameAccountId       String
   serverId            String?
   bindStatus          UserGameBindingStatus @default(active)
@@ -279,12 +285,14 @@ model UserGameBinding {
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 
-  user                User                  @relation(fields: [userId], references: [id])
-  gameAccount         GameAccount           @relation(fields: [gameAccountId], references: [id])
-  server              GameServer?           @relation(fields: [serverId], references: [id])
+  user        User?       @relation(fields: [userId], references: [id])
+  gameAccount GameAccount @relation(fields: [gameAccountId], references: [id])
+  server      GameServer? @relation(fields: [serverId], references: [id])
 
   @@unique([userId, gameAccountId])
+  @@unique([discourseUserId, gameAccountId])
   @@index([userId, bindStatus])
+  @@index([discourseUserId, bindStatus])
   @@index([gameAccountId, bindStatus])
 }
 
@@ -300,8 +308,8 @@ model PluginEvent {
   metadata       Json?
   createdAt      DateTime @default(now())
 
-  pluginClient   ServerPluginClient @relation(fields: [pluginClientId], references: [id])
-  server         GameServer          @relation(fields: [serverId], references: [id])
+  pluginClient ServerPluginClient @relation(fields: [pluginClientId], references: [id])
+  server       GameServer         @relation(fields: [serverId], references: [id])
 
   @@unique([pluginClientId, eventId])
   @@index([serverId, eventType, occurredAt])
@@ -320,31 +328,31 @@ model GameServerHeartbeat {
   metadata       Json?
   createdAt      DateTime @default(now())
 
-  pluginClient   ServerPluginClient @relation(fields: [pluginClientId], references: [id])
-  server         GameServer          @relation(fields: [serverId], references: [id])
+  pluginClient ServerPluginClient @relation(fields: [pluginClientId], references: [id])
+  server       GameServer         @relation(fields: [serverId], references: [id])
 
   @@unique([pluginClientId, statusId])
   @@index([serverId, sentAt])
 }
 
 model ForumAccount {
-  id             String                 @id @default(cuid())
-  userId         String
-  forumProvider  String
-  forumUserId    String
-  forumUsername  String
-  forumEmail     String?
-  externalUid    String
-  syncStatus     ForumAccountSyncStatus @default(pending_initial_sync)
-  mappingSource  String
-  lastSyncedAt   DateTime?
-  lastLoginAt    DateTime?
-  meta           Json?
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
+  id            String                 @id @default(cuid())
+  userId        String
+  forumProvider String
+  forumUserId   String
+  forumUsername String
+  forumEmail    String?
+  externalUid   String
+  syncStatus    ForumAccountSyncStatus @default(pending_initial_sync)
+  mappingSource String
+  lastSyncedAt  DateTime?
+  lastLoginAt   DateTime?
+  meta          Json?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
 
-  user           User                   @relation(fields: [userId], references: [id])
-  ssoTickets     ForumSsoTicket[]
+  user       User             @relation(fields: [userId], references: [id])
+  ssoTickets ForumSsoTicket[]
 
   @@unique([userId, forumProvider])
   @@unique([forumProvider, forumUserId])
@@ -367,25 +375,25 @@ model ForumSsoTicket {
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
-  user             User                 @relation(fields: [userId], references: [id])
-  forumAccount     ForumAccount         @relation(fields: [forumAccountId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  forumAccount ForumAccount @relation(fields: [forumAccountId], references: [id])
 
   @@index([status, expiresAt])
   @@index([forumProvider, status])
 }
 
 model AuditLog {
-  id             String   @id @default(cuid())
-  actorUserId    String?
-  action         String
-  targetType     String
-  targetId       String?
-  requestIp      String?
+  id               String   @id @default(cuid())
+  actorUserId      String?
+  action           String
+  targetType       String
+  targetId         String?
+  requestIp        String?
   requestUserAgent String?
-  metadata       Json?
-  createdAt      DateTime @default(now())
+  metadata         Json?
+  createdAt        DateTime @default(now())
 
-  actor          User?    @relation("AuditActor", fields: [actorUserId], references: [id])
+  actor User? @relation("AuditActor", fields: [actorUserId], references: [id])
 
   @@index([actorUserId, createdAt])
   @@index([targetType, targetId])

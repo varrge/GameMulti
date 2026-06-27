@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BindingModule } from './modules/binding/binding.module';
+import { BridgeModule } from './modules/bridge/bridge.module';
 import { ForumModule } from './modules/forum/forum.module';
 import { GameModule } from './modules/game/game.module';
 import { HealthController } from './modules/health/health.controller';
@@ -21,6 +22,7 @@ import { PrismaModule } from './prisma/prisma.module';
     InviteModule,
     GameModule,
     BindingModule,
+    BridgeModule,
     ForumModule,
     AdminModule,
   ],

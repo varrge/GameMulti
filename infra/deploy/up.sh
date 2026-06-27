@@ -27,7 +27,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
   if [[ -f "$ENV_EXAMPLE" ]]; then
     cp "$ENV_EXAMPLE" "$ENV_FILE"
     chmod 600 "$ENV_FILE" 2>/dev/null || true
-    echo "已从模板生成 $ENV_FILE，请先按需回填 WEB_SOURCE_DIR、PUBLIC_ORIGIN、FORUM_ORIGIN 后再重试。" >&2
+    echo "已从模板生成 $ENV_FILE，请先按需回填 PUBLIC_ORIGIN、FORUM_ORIGIN 后再重试。" >&2
   else
     echo "未找到环境变量文件: $ENV_FILE" >&2
   fi
@@ -112,6 +112,7 @@ set +a
 PUBLIC_ORIGIN=${PUBLIC_ORIGIN:-${APP_URL:-http://localhost:${HOST_HTTP_PORT:-8080}}}
 APP_URL=${APP_URL:-$PUBLIC_ORIGIN}
 API_URL=${API_URL:-$PUBLIC_ORIGIN/api}
+BRIDGE_PUBLIC_ORIGIN=${BRIDGE_PUBLIC_ORIGIN:-$PUBLIC_ORIGIN}
 NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-/api}
 if [[ -n "${FORUM_ORIGIN:-}" ]]; then
   NEXT_PUBLIC_FORUM_ORIGIN=${NEXT_PUBLIC_FORUM_ORIGIN:-$FORUM_ORIGIN}
@@ -121,31 +122,54 @@ fi
 FORUM_ENTRY_PATH=${FORUM_ENTRY_PATH:-/}
 NEXT_PUBLIC_FORUM_ENTRY_PATH=${NEXT_PUBLIC_FORUM_ENTRY_PATH:-$FORUM_ENTRY_PATH}
 FORUM_SSO_RETURN_URL=${FORUM_SSO_RETURN_URL:-$PUBLIC_ORIGIN/forums/discourse-connect}
+DISCOURSE_PROVIDER_SECRET=${DISCOURSE_PROVIDER_SECRET:-$FORUM_SSO_SECRET}
 
 export PUBLIC_ORIGIN
 export APP_URL
 export API_URL
+export BRIDGE_PUBLIC_ORIGIN
 export NEXT_PUBLIC_API_BASE_URL
 export FORUM_ORIGIN
 export NEXT_PUBLIC_FORUM_ORIGIN
 export FORUM_ENTRY_PATH
 export NEXT_PUBLIC_FORUM_ENTRY_PATH
 export FORUM_SSO_RETURN_URL
+export DISCOURSE_PROVIDER_SECRET
 
-: "${WEB_SOURCE_DIR:?WEB_SOURCE_DIR 未设置，请在 infra/compose/.env 中填写真实源码目录}"
-
-if [[ ! -d "$WEB_SOURCE_DIR" ]]; then
-  echo "WEB_SOURCE_DIR 不存在: $WEB_SOURCE_DIR" >&2
-  exit 1
+if [[ "${ENABLE_WEB:-0}" == "1" || "${ENABLE_WEB:-}" == "true" ]]; then
+  if [[ -n "${COMPOSE_PROFILES:-}" ]]; then
+    COMPOSE_PROFILES="${COMPOSE_PROFILES},web"
+  else
+    COMPOSE_PROFILES="web"
+  fi
+  NGINX_CONF=${NGINX_CONF:-../nginx/with-web.conf}
 fi
 
-if [[ ! -f "$WEB_SOURCE_DIR/package.json" ]]; then
-  echo "WEB_SOURCE_DIR 下缺少 package.json: $WEB_SOURCE_DIR" >&2
-  exit 1
+export COMPOSE_PROFILES
+export NGINX_CONF
+
+if [[ ",${COMPOSE_PROFILES:-}," == *",web,"* ]]; then
+  WEB_SOURCE_DIR=${WEB_SOURCE_DIR:-$REPO_ROOT/apps/web}
+  export WEB_SOURCE_DIR
+
+  if [[ ! -d "$WEB_SOURCE_DIR" ]]; then
+    echo "WEB_SOURCE_DIR 不存在: $WEB_SOURCE_DIR" >&2
+    exit 1
+  fi
+
+  if [[ ! -f "$WEB_SOURCE_DIR/package.json" ]]; then
+    echo "WEB_SOURCE_DIR 下缺少 package.json: $WEB_SOURCE_DIR" >&2
+    exit 1
+  fi
 fi
 
 if [[ ! -f "$REPO_ROOT/infra/nginx/default.conf" ]]; then
   echo "未找到 nginx 配置: $REPO_ROOT/infra/nginx/default.conf" >&2
+  exit 1
+fi
+
+if [[ ! -f "$COMPOSE_DIR/${NGINX_CONF:-../nginx/default.conf}" && ! -f "${NGINX_CONF:-}" ]]; then
+  echo "未找到 nginx 配置: ${NGINX_CONF:-../nginx/default.conf}" >&2
   exit 1
 fi
 
@@ -164,10 +188,15 @@ if [[ -n "$existing_web" ]]; then
   fi
 fi
 
-echo "==> 使用源码目录: $WEB_SOURCE_DIR"
+if [[ ",${COMPOSE_PROFILES:-}," == *",web,"* ]]; then
+  echo "==> 使用前端源码目录: $WEB_SOURCE_DIR"
+else
+  echo "==> 默认不启动 web 服务；如需旧前端，请设置 ENABLE_WEB=1 或 COMPOSE_PROFILES=web"
+fi
 echo "==> Compose 文件: $COMPOSE_FILE"
 echo "==> Compose 项目名: $COMPOSE_PROJECT_NAME"
 echo "==> HTTP 入口端口: ${HOST_HTTP_PORT:-8080}"
+echo "==> Nginx 配置: ${NGINX_CONF:-../nginx/default.conf}"
 echo "==> 启动 compose 服务"
 cd "$COMPOSE_DIR"
 docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans

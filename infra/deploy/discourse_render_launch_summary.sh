@@ -15,22 +15,28 @@ set -a
 source "$ENV_FILE"
 set +a
 
+EXPLICIT_DISCOURSE_PROVIDER_SECRET=${DISCOURSE_PROVIDER_SECRET:-}
 GAME_API_ORIGIN=${GAME_API_ORIGIN:-${GAME_PUBLIC_ORIGIN:-}}
+BRIDGE_PUBLIC_ORIGIN=${BRIDGE_PUBLIC_ORIGIN:-${GAME_PUBLIC_ORIGIN:-}}
 FORUM_ORIGIN=${FORUM_ORIGIN:-https://${DISCOURSE_HOSTNAME:-}}
 FORUM_SSO_RETURN_URL=${FORUM_SSO_RETURN_URL:-${GAME_PUBLIC_ORIGIN:-}/forums/discourse-connect}
+DISCOURSE_PROVIDER_SECRET=${DISCOURSE_PROVIDER_SECRET:-${FORUM_SSO_SECRET:-}}
 NEXT_PUBLIC_FORUM_ORIGIN=${NEXT_PUBLIC_FORUM_ORIGIN:-$FORUM_ORIGIN}
 DISCOURSE_DEFAULT_LOCALE=${DISCOURSE_DEFAULT_LOCALE:-zh_CN}
 DISCOURSE_ALLOW_USER_LOCALE=${DISCOURSE_ALLOW_USER_LOCALE:-true}
 
 export GAME_API_ORIGIN
+export BRIDGE_PUBLIC_ORIGIN
 export FORUM_ORIGIN
 export FORUM_SSO_RETURN_URL
+export DISCOURSE_PROVIDER_SECRET
 export NEXT_PUBLIC_FORUM_ORIGIN
 export DISCOURSE_DEFAULT_LOCALE
 export DISCOURSE_ALLOW_USER_LOCALE
 
 required_vars=(
   GAME_PUBLIC_ORIGIN
+  BRIDGE_PUBLIC_ORIGIN
   DISCOURSE_HOSTNAME
   DISCOURSE_DEVELOPER_EMAILS
   LETSENCRYPT_ACCOUNT_EMAIL
@@ -56,6 +62,13 @@ elif [[ ${#FORUM_SSO_SECRET} -lt 32 ]]; then
   echo "ERROR: FORUM_SSO_SECRET should be at least 32 characters" >&2
   missing=$((missing + 1))
 fi
+if [[ -z "${DISCOURSE_PROVIDER_SECRET:-}" || "${DISCOURSE_PROVIDER_SECRET:-}" == replace-with-* ]]; then
+  echo "ERROR: DISCOURSE_PROVIDER_SECRET is missing or still uses a placeholder" >&2
+  missing=$((missing + 1))
+elif [[ ${#DISCOURSE_PROVIDER_SECRET} -lt 32 ]]; then
+  echo "ERROR: DISCOURSE_PROVIDER_SECRET should be at least 32 characters" >&2
+  missing=$((missing + 1))
+fi
 
 if [[ $missing -gt 0 ]]; then
   exit 1
@@ -68,9 +81,11 @@ cat <<EOF
 
 GameMulti:
   public origin: ${GAME_PUBLIC_ORIGIN}
+  bridge origin: ${BRIDGE_PUBLIC_ORIGIN}
   API origin: ${GAME_API_ORIGIN}
   health check: ${GAME_API_ORIGIN}/api/healthz
   forum callback: ${FORUM_SSO_RETURN_URL}
+  provider callback: ${BRIDGE_PUBLIC_ORIGIN}/api/auth/discourse/callback
 
 Discourse:
   hostname: ${DISCOURSE_HOSTNAME}
@@ -92,6 +107,8 @@ GameMulti env to apply:
   FORUM_ORIGIN=${FORUM_ORIGIN}
   FORUM_ENTRY_PATH=${FORUM_ENTRY_PATH:-/}
   FORUM_SSO_SECRET=<same private secret as Discourse>
+  DISCOURSE_PROVIDER_SECRET=${EXPLICIT_DISCOURSE_PROVIDER_SECRET:+<explicit private provider secret>}${EXPLICIT_DISCOURSE_PROVIDER_SECRET:-<defaults to FORUM_SSO_SECRET>}
+  BRIDGE_PUBLIC_ORIGIN=${BRIDGE_PUBLIC_ORIGIN}
   FORUM_SSO_RETURN_URL=${FORUM_SSO_RETURN_URL}
   NEXT_PUBLIC_FORUM_ORIGIN=${NEXT_PUBLIC_FORUM_ORIGIN}
   NEXT_PUBLIC_FORUM_ENTRY_PATH=${NEXT_PUBLIC_FORUM_ENTRY_PATH:-${FORUM_ENTRY_PATH:-/}}
@@ -102,9 +119,8 @@ Commands:
   bash infra/deploy/discourse_configure_sso.sh ${ENV_FILE}
 
 Browser validation:
-  1. ${GAME_PUBLIC_ORIGIN}/account
-  2. ${GAME_PUBLIC_ORIGIN}/forums
-  3. ${FORUM_ORIGIN}/session/sso?... redirect
-  4. ${FORUM_SSO_RETURN_URL}?sso=...&sig=...
-  5. ${FORUM_ORIGIN} logged in as the GameMulti user
+  1. Create a real binding session and open ${BRIDGE_PUBLIC_ORIGIN}/bind/confirm?token=...
+  2. Confirm redirect to ${FORUM_ORIGIN}/session/sso_provider?...
+  3. Confirm callback to ${BRIDGE_PUBLIC_ORIGIN}/api/auth/discourse/callback?sso=...&sig=...
+  4. Confirm the Bridge binding page can complete the binding
 EOF

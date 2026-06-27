@@ -31,12 +31,16 @@ source "$ENV_FILE"
 set +a
 
 FORUM_ORIGIN=${FORUM_ORIGIN:-https://${DISCOURSE_HOSTNAME:-}}
+BRIDGE_PUBLIC_ORIGIN=${BRIDGE_PUBLIC_ORIGIN:-${GAME_PUBLIC_ORIGIN:-}}
 FORUM_SSO_RETURN_URL=${FORUM_SSO_RETURN_URL:-${GAME_PUBLIC_ORIGIN:-}/forums/discourse-connect}
+DISCOURSE_PROVIDER_SECRET=${DISCOURSE_PROVIDER_SECRET:-${FORUM_SSO_SECRET:-}}
 DISCOURSE_DEFAULT_LOCALE=${DISCOURSE_DEFAULT_LOCALE:-zh_CN}
 DISCOURSE_ALLOW_USER_LOCALE=${DISCOURSE_ALLOW_USER_LOCALE:-true}
 
 export FORUM_ORIGIN
+export BRIDGE_PUBLIC_ORIGIN
 export FORUM_SSO_RETURN_URL
+export DISCOURSE_PROVIDER_SECRET
 export DISCOURSE_DEFAULT_LOCALE
 export DISCOURSE_ALLOW_USER_LOCALE
 
@@ -45,8 +49,10 @@ docker info >/dev/null 2>&1 || fail "docker daemon is not reachable"
 
 required_vars=(
   GAME_PUBLIC_ORIGIN
+  BRIDGE_PUBLIC_ORIGIN
   DISCOURSE_HOSTNAME
   FORUM_SSO_SECRET
+  DISCOURSE_PROVIDER_SECRET
 )
 
 for name in "${required_vars[@]}"; do
@@ -56,9 +62,15 @@ done
 if [[ ${#FORUM_SSO_SECRET} -lt 32 ]]; then
   fail "FORUM_SSO_SECRET should be at least 32 characters"
 fi
+if [[ ${#DISCOURSE_PROVIDER_SECRET} -lt 32 ]]; then
+  fail "DISCOURSE_PROVIDER_SECRET should be at least 32 characters"
+fi
 
 if [[ "$FORUM_ORIGIN" != "https://$DISCOURSE_HOSTNAME" ]]; then
   warn "FORUM_ORIGIN does not match https://DISCOURSE_HOSTNAME"
+fi
+if [[ "$BRIDGE_PUBLIC_ORIGIN" != "$GAME_PUBLIC_ORIGIN" ]]; then
+  warn "BRIDGE_PUBLIC_ORIGIN differs from GAME_PUBLIC_ORIGIN; make sure /bind and /api route to Bridge"
 fi
 
 if [[ "$FORUM_SSO_RETURN_URL" != "$GAME_PUBLIC_ORIGIN/forums/discourse-connect" ]]; then
@@ -74,7 +86,9 @@ fi
 docker exec \
   -e GM_FORUM_SSO_RETURN_URL="$FORUM_SSO_RETURN_URL" \
   -e GM_FORUM_SSO_SECRET="$FORUM_SSO_SECRET" \
+  -e GM_DISCOURSE_PROVIDER_SECRET="$DISCOURSE_PROVIDER_SECRET" \
   -e GM_GAME_PUBLIC_ORIGIN="$GAME_PUBLIC_ORIGIN" \
+  -e GM_BRIDGE_PUBLIC_ORIGIN="$BRIDGE_PUBLIC_ORIGIN" \
   -e GM_FORUM_ORIGIN="$FORUM_ORIGIN" \
   -e GM_DISCOURSE_DEFAULT_LOCALE="$DISCOURSE_DEFAULT_LOCALE" \
   -e GM_DISCOURSE_ALLOW_USER_LOCALE="$DISCOURSE_ALLOW_USER_LOCALE" \
@@ -88,11 +102,14 @@ def env_bool(name, default)
 end
 
 game_origin = ENV.fetch("GM_GAME_PUBLIC_ORIGIN")
+bridge_origin = ENV.fetch("GM_BRIDGE_PUBLIC_ORIGIN")
 forum_origin = ENV.fetch("GM_FORUM_ORIGIN")
 callback_url = ENV.fetch("GM_FORUM_SSO_RETURN_URL")
 secret = ENV.fetch("GM_FORUM_SSO_SECRET")
+provider_secret = ENV.fetch("GM_DISCOURSE_PROVIDER_SECRET")
 
 game_host = URI(game_origin).host
+bridge_host = URI(bridge_origin).host
 forum_host = URI(forum_origin).host
 
 SiteSetting.enable_discourse_connect = true
@@ -100,6 +117,23 @@ SiteSetting.discourse_connect_url = callback_url
 SiteSetting.discourse_connect_secret = secret
 SiteSetting.discourse_connect_csrf_protection = true if SiteSetting.respond_to?(:discourse_connect_csrf_protection=)
 SiteSetting.force_https = true if SiteSetting.respond_to?(:force_https=)
+
+if SiteSetting.respond_to?(:enable_discourse_connect_provider=)
+  SiteSetting.enable_discourse_connect_provider = true
+end
+
+provider_pair = "#{bridge_host}|#{provider_secret}"
+[
+  :discourse_connect_provider_secrets,
+  :sso_provider_secrets,
+].each do |setting_name|
+  setter = "#{setting_name}="
+  next unless SiteSetting.respond_to?(setter)
+
+  current = SiteSetting.public_send(setting_name).to_s.split(/\r?\n/).map(&:strip).reject(&:empty?)
+  SiteSetting.public_send(setter, (current + [provider_pair]).uniq.join("\n"))
+  break
+end
 
 locale_settings = {
   default_locale: ENV.fetch("GM_DISCOURSE_DEFAULT_LOCALE", "zh_CN"),
@@ -124,6 +158,7 @@ puts({
   force_https: SiteSetting.respond_to?(:force_https) ? SiteSetting.force_https : nil,
   default_locale: SiteSetting.respond_to?(:default_locale) ? SiteSetting.default_locale : nil,
   game_host: game_host,
+  bridge_host: bridge_host,
   forum_host: forum_host,
 }.to_json)
 RUBY

@@ -47,13 +47,17 @@ source "$ENV_FILE"
 set +a
 
 GAME_API_ORIGIN=${GAME_API_ORIGIN:-${GAME_PUBLIC_ORIGIN:-}}
+BRIDGE_PUBLIC_ORIGIN=${BRIDGE_PUBLIC_ORIGIN:-${GAME_PUBLIC_ORIGIN:-}}
 FORUM_ORIGIN=${FORUM_ORIGIN:-https://${DISCOURSE_HOSTNAME:-}}
 FORUM_SSO_RETURN_URL=${FORUM_SSO_RETURN_URL:-${GAME_PUBLIC_ORIGIN:-}/forums/discourse-connect}
+DISCOURSE_PROVIDER_SECRET=${DISCOURSE_PROVIDER_SECRET:-${FORUM_SSO_SECRET:-}}
 NEXT_PUBLIC_FORUM_ORIGIN=${NEXT_PUBLIC_FORUM_ORIGIN:-$FORUM_ORIGIN}
 
 export GAME_API_ORIGIN
+export BRIDGE_PUBLIC_ORIGIN
 export FORUM_ORIGIN
 export FORUM_SSO_RETURN_URL
+export DISCOURSE_PROVIDER_SECRET
 export NEXT_PUBLIC_FORUM_ORIGIN
 
 note "==> Checking local tools"
@@ -73,6 +77,7 @@ done
 note "==> Checking required variables"
 required_vars=(
   GAME_PUBLIC_ORIGIN
+  BRIDGE_PUBLIC_ORIGIN
   DISCOURSE_HOSTNAME
   DISCOURSE_DEVELOPER_EMAILS
   LETSENCRYPT_ACCOUNT_EMAIL
@@ -82,6 +87,7 @@ required_vars=(
   DISCOURSE_SMTP_PASSWORD
   DISCOURSE_NOTIFICATION_EMAIL
   FORUM_SSO_SECRET
+  DISCOURSE_PROVIDER_SECRET
 )
 
 for name in "${required_vars[@]}"; do
@@ -90,6 +96,7 @@ done
 
 real_value_vars=(
   GAME_PUBLIC_ORIGIN
+  BRIDGE_PUBLIC_ORIGIN
   DISCOURSE_HOSTNAME
   DISCOURSE_DEVELOPER_EMAILS
   LETSENCRYPT_ACCOUNT_EMAIL
@@ -105,6 +112,9 @@ done
 if [[ ${FORUM_SSO_SECRET:-} != replace-with-* && ${#FORUM_SSO_SECRET:-} -lt 32 ]]; then
   fail "FORUM_SSO_SECRET should be at least 32 characters"
 fi
+if [[ ${DISCOURSE_PROVIDER_SECRET:-} != replace-with-* && ${#DISCOURSE_PROVIDER_SECRET:-} -lt 32 ]]; then
+  fail "DISCOURSE_PROVIDER_SECRET should be at least 32 characters"
+fi
 
 if [[ ${FORUM_ORIGIN:-} != "https://${DISCOURSE_HOSTNAME:-}" ]]; then
   warn "FORUM_ORIGIN does not match https://DISCOURSE_HOSTNAME"
@@ -112,6 +122,9 @@ fi
 
 if [[ ${FORUM_SSO_RETURN_URL:-} != "${GAME_PUBLIC_ORIGIN:-}/forums/discourse-connect" ]]; then
   warn "FORUM_SSO_RETURN_URL is not GAME_PUBLIC_ORIGIN + /forums/discourse-connect"
+fi
+if [[ ${BRIDGE_PUBLIC_ORIGIN:-} != "${GAME_PUBLIC_ORIGIN:-}" ]]; then
+  warn "BRIDGE_PUBLIC_ORIGIN differs from GAME_PUBLIC_ORIGIN; confirm /bind and /api routing"
 fi
 
 note "==> Checking DNS resolution"

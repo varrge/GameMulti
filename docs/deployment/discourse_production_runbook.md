@@ -2,11 +2,14 @@
 
 ## 目标架构
 
-GameMulti 主站/API 与 Discourse 分开部署：
+GameMulti Bridge 与 Discourse 分开部署：
 
-- GameMulti：继续由 `infra/deploy/up.sh` 启动主站、API、Postgres、Nginx。
+- GameMulti Bridge：继续由 `infra/deploy/up.sh` 启动 API、Postgres、Nginx；旧 Next 主站默认不部署，只在设置 `ENABLE_WEB=1` 或 `COMPOSE_PROFILES=web` 时启用。
 - Discourse：独立服务器或独立 VM，使用官方 `discourse_docker` 安装方式。
-- 登录打通：GameMulti 已登录用户访问 `/forums`，后端通过 `/api/forum/sso/start` 进入 Discourse `/session/sso`，Discourse 再回到 GameMulti `/forums/discourse-connect` 完成 DiscourseConnect 授权。
+- 登录打通主线：玩家打开 `/bind/confirm?token=...`，Bridge 跳到 Discourse
+  `/session/sso_provider`，Discourse 登录后回到 Bridge
+  `/api/auth/discourse/callback`，Bridge 设置 HttpOnly session cookie 并回到绑定页。
+- 兼容链路：旧的 `/api/forum/sso/start` 与 `/forums/discourse-connect` 暂时保留，用于过渡期验证。
 
 不建议把生产 Discourse 塞进当前 dev compose。Discourse 对 SMTP、TLS、持久化、升级和备份有独立运维要求，拆开部署更容易回滚和排障。
 
@@ -34,8 +37,8 @@ GameMulti 主站/API 与 Discourse 分开部署：
 - 论坛域名，例如 `forum.example.com`，DNS A/AAAA 记录已指向论坛服务器。
 - 服务器开放 `80/tcp` 和 `443/tcp`。
 - 可用 SMTP。Discourse 生产环境没有可用邮件基本不可运营。
-- GameMulti 对外地址已确定，例如 `https://app.example.com`。
-- GameMulti DiscourseConnect 地址可公网访问：`https://app.example.com/forums/discourse-connect`。
+- Bridge 对外地址已确定，例如 `https://app.example.com`。
+- Bridge Discourse provider 回调可公网访问：`https://app.example.com/api/auth/discourse/callback`。
 
 ## 环境文件
 
@@ -50,6 +53,7 @@ cp infra/deploy/discourse.env.example infra/deploy/discourse.env
 | 变量 | 用途 | 是否 secret |
 | --- | --- | --- |
 | `GAME_PUBLIC_ORIGIN` | GameMulti 浏览器访问入口 | 否 |
+| `BRIDGE_PUBLIC_ORIGIN` | Bridge 浏览器访问入口，未分域时等于 `GAME_PUBLIC_ORIGIN` | 否 |
 | `GAME_API_ORIGIN` | GameMulti API 对外入口，未分域时可省略，默认同主站 | 否 |
 | `DISCOURSE_HOSTNAME` | 论坛域名，不带协议 | 否 |
 | `DISCOURSE_DEVELOPER_EMAILS` | Discourse 管理员邮箱 | 否 |
@@ -58,7 +62,8 @@ cp infra/deploy/discourse.env.example infra/deploy/discourse.env
 | `DISCOURSE_ALLOW_USER_LOCALE` | 是否允许用户在个人偏好中切换语言，默认 `true` | 否 |
 | `DISCOURSE_SMTP_*` | Discourse 发信配置 | 密码是 secret |
 | `FORUM_ORIGIN` | GameMulti 后端使用的论坛根地址，可省略，默认 `https://DISCOURSE_HOSTNAME` | 否 |
-| `FORUM_SSO_SECRET` | DiscourseConnect shared secret | 是 |
+| `FORUM_SSO_SECRET` | DiscourseConnect shared secret，默认也作为 provider secret | 是 |
+| `DISCOURSE_PROVIDER_SECRET` | Discourse 作为身份提供方时给 Bridge 使用的 secret，可省略并复用 `FORUM_SSO_SECRET` | 是 |
 | `FORUM_SSO_RETURN_URL` | DiscourseConnect URL，可省略，默认 `GAME_PUBLIC_ORIGIN + /forums/discourse-connect` | 否 |
 | `NEXT_PUBLIC_FORUM_ORIGIN` | 前端展示/跳转用论坛地址，可省略，默认 `FORUM_ORIGIN` | 否 |
 | `DISCOURSE_CONTAINER` | 论坛服务器上的 Discourse 容器名，官方默认 `app` | 否 |
@@ -69,7 +74,7 @@ cp infra/deploy/discourse.env.example infra/deploy/discourse.env
 openssl rand -hex 32
 ```
 
-同一个 secret 必须同时填入 GameMulti 运行环境和 Discourse 后台。staging/prod 不要复用。
+同一个 secret 必须同时填入 Bridge 运行环境和 Discourse 后台。staging/prod 不要复用。
 
 ## 部署前检查
 
@@ -132,6 +137,9 @@ bash infra/deploy/discourse_configure_sso.sh infra/deploy/discourse.env
 - `enable_discourse_connect=true`
 - `discourse_connect_url=FORUM_SSO_RETURN_URL`
 - `discourse_connect_secret=FORUM_SSO_SECRET`
+- 如果 Discourse 支持，开启 `enable_discourse_connect_provider`
+- 如果 Discourse 支持，写入 `discourse_connect_provider_secrets` 或旧版
+  `sso_provider_secrets`，格式为 `BRIDGE_HOST|DISCOURSE_PROVIDER_SECRET`
 - `force_https=true`
 - `default_locale=DISCOURSE_DEFAULT_LOCALE`，默认 `zh_CN`
 - 关闭浏览器 `Accept-Language` 对匿名用户默认语言的覆盖
@@ -165,15 +173,29 @@ GameMulti 最后返回 Discourse：
 https://forum.example.com/session/sso_login?sso=...&sig=...
 ```
 
+新的 Bridge 绑定页代码会生成：
+
+```text
+https://forum.example.com/session/sso_provider?sso=...&sig=...
+```
+
+Discourse 登录后回到 Bridge：
+
+```text
+https://app.example.com/api/auth/discourse/callback?sso=...&sig=...
+```
+
 ## GameMulti 配置
 
-GameMulti 运行环境必须包含：
+GameMulti Bridge 运行环境必须包含：
 
 ```env
 FORUM_PROVIDER=discourse
 FORUM_ORIGIN=https://forum.example.com
 FORUM_ENTRY_PATH=/
 FORUM_SSO_SECRET=replace-with-the-same-secret-as-discourse
+# DISCOURSE_PROVIDER_SECRET defaults to FORUM_SSO_SECRET unless explicitly set
+# BRIDGE_PUBLIC_ORIGIN defaults to PUBLIC_ORIGIN
 # FORUM_SSO_RETURN_URL defaults to PUBLIC_ORIGIN + /forums/discourse-connect
 # NEXT_PUBLIC_FORUM_ORIGIN defaults to FORUM_ORIGIN
 NEXT_PUBLIC_FORUM_ENTRY_PATH=/
@@ -184,6 +206,9 @@ NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 ```bash
 bash infra/deploy/up.sh
 ```
+
+默认只会启动 Bridge API、Postgres 和 Nginx。旧 Next 前端不是新主线，生产不要默认启用；
+确实需要临时访问旧页面时再设置 `ENABLE_WEB=1` 并确认 `NGINX_CONF=../nginx/with-web.conf`。
 
 ## 验证
 
@@ -198,17 +223,18 @@ curl -fsS https://app.example.com/api/healthz
 GameMulti 侧 smoke：
 
 ```bash
-npm run smoke:web-api
+npm run smoke:bridge-api
 ```
 
 真实浏览器检查：
 
-1. 打开 `https://app.example.com/account` 并登录。
-2. 点击进入论坛或打开 `/forums`。
-3. 确认先跳转到 `https://forum.example.com/session/sso?...`。
-4. 确认 Discourse 回到 `https://app.example.com/forums/discourse-connect?sso=...&sig=...`。
-5. 确认最后进入论坛并能看到对应用户。
-6. 打开 GameMulti Admin，确认论坛账号摘要有新增或激活记录。
+1. 创建一个真实绑定 session，拿到 `/bind/confirm?token=...`。
+2. 打开 `https://app.example.com/bind/confirm?token=...`。
+3. 确认先跳转到 `https://forum.example.com/session/sso_provider?...`。
+4. 确认 Discourse 回到 `https://app.example.com/api/auth/discourse/callback?sso=...&sig=...`。
+5. 确认最后回到绑定确认页，并能完成绑定。
+6. 确认 Bridge 数据库里出现论坛账号映射和游戏绑定记录，且
+   `UserGameBinding.discourseUserId` 等于 Discourse 回调里的 `external_id`。
 
 ## 备份
 
@@ -236,8 +262,7 @@ GameMulti 升级后至少跑：
 
 ```bash
 npm --workspace apps/api run build
-npm --workspace apps/web run build
-npm run smoke:web-api
+npm run smoke:bridge-api
 ```
 
 ## 回滚
@@ -261,9 +286,9 @@ Discourse 回滚：
 | --- | --- |
 | 论坛打不开 | DNS、80/443、安全组、Discourse 容器状态 |
 | 论坛停在初始化页 | 先完成管理员初始化，再测 SSO |
-| 跳转后签名错误 | `FORUM_SSO_SECRET` 两边不一致 |
-| 回调 404/502 | DiscourseConnect URL、主站反向代理、API 是否部署 |
-| 用户能进主站但不能进论坛 | DiscourseConnect 是否启用、consume path 是否为 `/session/sso_login` |
+| 跳转后签名错误 | `FORUM_SSO_SECRET` 或 `DISCOURSE_PROVIDER_SECRET` 两边不一致 |
+| 回调 404/502 | `BRIDGE_PUBLIC_ORIGIN`、`/api/auth/discourse/callback`、反向代理、API 是否部署 |
+| 绑定页反复跳登录 | Discourse provider 是否启用、provider secret host 是否匹配 Bridge host、cookie 是否被 HTTPS/SameSite 拦截 |
 | smoke 通过但真实论坛失败 | smoke 只验证协议级流程，需要再做浏览器真实跳转 |
 | 生产脚本提示容器不存在 | 确认 `docker ps` 中 Discourse 容器名，并设置 `DISCOURSE_CONTAINER` |
 
@@ -273,7 +298,7 @@ Discourse 回滚：
 
 - Discourse 生产站点已初始化并启用 HTTPS。
 - SMTP 可发信。
-- GameMulti 与 Discourse 使用同一个 `FORUM_SSO_SECRET`。
-- 浏览器从 GameMulti 登录态能进入真实论坛。
-- Admin 能看到论坛账号映射/激活状态。
+- Bridge 与 Discourse 使用匹配的 `FORUM_SSO_SECRET` / `DISCOURSE_PROVIDER_SECRET`。
+- 浏览器从绑定链接能进入 Discourse provider 登录，并回到 Bridge 完成绑定。
+- 数据库能看到论坛账号映射/激活状态和游戏绑定结果。
 - 备份和回滚路径已确认。

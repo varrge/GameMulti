@@ -9,7 +9,7 @@
 
 | 项 | 示例 | 说明 |
 | --- | --- | --- |
-| GameMulti 入口 | `https://app.example.com` | 用户访问主站的公网地址 |
+| Bridge/GameMulti 入口 | `https://app.example.com` | 插件 API、绑定确认页和回调地址；默认不部署旧 Next 前端 |
 | Discourse 域名 | `forum.example.com` | 不带协议，DNS 指向论坛服务器 |
 | 管理员邮箱 | `admin@example.com` | Discourse 初始化和证书通知 |
 | SMTP 地址/端口/账号/密码 | provider value | Discourse 生产必须可发信 |
@@ -35,6 +35,7 @@ openssl rand -hex 32
 
 ```env
 GAME_PUBLIC_ORIGIN=https://app.example.com
+BRIDGE_PUBLIC_ORIGIN=https://app.example.com
 DISCOURSE_HOSTNAME=forum.example.com
 DISCOURSE_DEVELOPER_EMAILS=admin@example.com
 LETSENCRYPT_ACCOUNT_EMAIL=admin@example.com
@@ -46,6 +47,7 @@ DISCOURSE_SMTP_USER_NAME=postmaster@example.com
 DISCOURSE_SMTP_PASSWORD=replace-with-real-smtp-password
 DISCOURSE_NOTIFICATION_EMAIL=noreply@example.com
 FORUM_SSO_SECRET=replace-with-64-hex-random-secret
+# DISCOURSE_PROVIDER_SECRET=replace-with-64-hex-random-secret
 ```
 
 如果已经先在 GameMulti 服务器执行过 `bash infra/deploy/up.sh`，优先使用首次部署时
@@ -55,9 +57,11 @@ FORUM_SSO_SECRET=replace-with-64-hex-random-secret
 派生规则：
 
 - `GAME_API_ORIGIN` 默认等于 `GAME_PUBLIC_ORIGIN`。
+- `BRIDGE_PUBLIC_ORIGIN` 默认等于 `GAME_PUBLIC_ORIGIN`。
 - `FORUM_ORIGIN` 默认等于 `https://DISCOURSE_HOSTNAME`。
 - `NEXT_PUBLIC_FORUM_ORIGIN` 默认等于 `FORUM_ORIGIN`。
 - `FORUM_SSO_RETURN_URL` 默认等于 `GAME_PUBLIC_ORIGIN + /forums/discourse-connect`。
+- `DISCOURSE_PROVIDER_SECRET` 默认可与 `FORUM_SSO_SECRET` 相同；如果拆开，两边必须分别一致。
 
 只有分域、反向代理路径特殊或论坛入口和 hostname 不一致时，才显式覆盖这些值。
 
@@ -90,12 +94,14 @@ FORUM_PROVIDER=discourse
 FORUM_ORIGIN=https://forum.example.com
 FORUM_ENTRY_PATH=/
 FORUM_SSO_SECRET=replace-with-the-same-secret-as-discourse
+# DISCOURSE_PROVIDER_SECRET defaults to FORUM_SSO_SECRET unless explicitly set
 NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 ```
 
 如果使用 `infra/deploy/up.sh`，服务器 `infra/compose/.env` 里只需要写
 `PUBLIC_ORIGIN`、`FORUM_ORIGIN` 和 `FORUM_SSO_SECRET`；脚本会派生
-`FORUM_SSO_RETURN_URL` 和 `NEXT_PUBLIC_FORUM_ORIGIN`。
+`BRIDGE_PUBLIC_ORIGIN`、`DISCOURSE_PROVIDER_SECRET`、`FORUM_SSO_RETURN_URL`
+和 `NEXT_PUBLIC_FORUM_ORIGIN`。
 
 如果 `FORUM_SSO_SECRET` 仍是占位值，`up.sh` 会在第一次部署时随机生成并显示一次。
 把这个值保存下来，并同步写入论坛服务器的 `infra/deploy/discourse.env`。
@@ -148,7 +154,8 @@ cd /path/to/GameMulti
 bash infra/deploy/discourse_configure_sso.sh infra/deploy/discourse.env
 ```
 
-这个脚本同时会配置论坛默认语言。
+这个脚本同时会配置论坛默认语言，并开启 Discourse 作为 identity provider，
+供 Bridge 的 `/bind/confirm?token=...` 页面跳转登录。
 
 如果脚本提示容器不存在：
 
@@ -174,22 +181,24 @@ curl -I https://app.example.com/
 curl -fsS https://app.example.com/api/healthz
 ```
 
-GameMulti smoke：
+GameMulti Bridge smoke：
 
 ```bash
 cd /path/to/GameMulti
-npm run smoke:web-api
+npm run smoke:bridge-api
 ```
 
 浏览器检查：
 
-1. 打开 `https://app.example.com/account` 并登录。
-2. 打开 `https://app.example.com/forums`。
-3. 点击进入论坛。
-4. 确认跳转到 `https://forum.example.com/session/sso?...`。
-5. 确认回调经过 `https://app.example.com/forums/discourse-connect?...`。
-6. 最终进入 `https://forum.example.com`，且显示当前用户。
-7. 打开 GameMulti Admin，确认论坛账号摘要新增或激活。
+1. 在游戏侧或 API 创建一个真实绑定 session，拿到 `/bind/confirm?token=...`。
+2. 退出 Bridge 登录态后打开 `https://app.example.com/bind/confirm?token=...`。
+3. 确认跳转到 `https://forum.example.com/session/sso_provider?...`。
+4. 登录或确认 Discourse 当前用户。
+5. 确认回调经过 `https://app.example.com/api/auth/discourse/callback?...`。
+6. 确认回到绑定页并显示论坛用户名、游戏账号、服务器。
+7. 点击确认绑定，确认页面显示绑定完成。
+8. 用 API 或数据库确认 `ForumAccount` 已写入，且 `UserGameBinding.discourseUserId`
+   等于 Discourse 回调里的 `external_id`。
 
 只有浏览器检查通过，才算论坛上线完成。
 
@@ -216,7 +225,7 @@ Discourse 配置错误优先回滚后台设置：
 | --- | --- |
 | `discourse_check_prereqs.sh` DNS 失败 | 等 DNS 生效或修正 A/AAAA 记录 |
 | Discourse 无法发邮件 | 修正 SMTP，生产不能跳过 |
-| 跳转后签名错误 | 确认两边 `FORUM_SSO_SECRET` 完全一致 |
-| 回调 404/502 | 检查 `FORUM_SSO_RETURN_URL` 和主站反向代理 |
+| 跳转后签名错误 | 确认 `FORUM_SSO_SECRET` / `DISCOURSE_PROVIDER_SECRET` 两边完全一致 |
+| 回调 404/502 | 检查 `BRIDGE_PUBLIC_ORIGIN`、`/api/auth/discourse/callback` 和反向代理 |
 | 论坛页面 loading | 检查 Discourse assets、HTTPS、浏览器 Network 404/500 |
 | smoke 通过但浏览器失败 | 以浏览器链路为准，检查 cookie、域名、HTTPS 和 DiscourseConnect 设置 |

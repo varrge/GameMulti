@@ -19,7 +19,7 @@ await main().catch((error) => {
 async function main() {
   const discourseState = await inspectDiscourse();
   await getJson('/healthz');
-  await fetchOk(`${appBaseUrl}/forums`, 'GameMulti /forums');
+  await fetchOk(`${appBaseUrl}/`, 'GameMulti Bridge root');
 
   const createdInvite = await postJson('/admin/invitations/batch-create', {
     count: 1,

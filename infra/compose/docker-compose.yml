@@ -2,6 +2,7 @@ services:
   web:
     image: node:22-alpine
     container_name: ${APP_NAME:-gamemulti}-web
+    profiles: ["web"]
     working_dir: /app
     command: >-
       sh -lc "npm install && npm run dev -- --hostname 0.0.0.0 --port ${WEB_PORT:-3301}"
@@ -15,7 +16,7 @@ services:
       NEXT_PUBLIC_FORUM_ENTRY_PATH: ${NEXT_PUBLIC_FORUM_ENTRY_PATH:-/}
       HOSTNAME: 0.0.0.0
     volumes:
-      - ${WEB_SOURCE_DIR}:/app
+      - ${WEB_SOURCE_DIR:-../../apps/web}:/app
       - web_node_modules:/app/node_modules
       - web_next:/app/.next
     expose:
@@ -45,12 +46,14 @@ services:
       ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
       ADMIN_USERNAMES: ${ADMIN_USERNAMES:-}
       DATABASE_URL: ${DATABASE_URL:-postgresql://gamemulti:changeme@postgres:5432/gamemulti?schema=public}
+      BRIDGE_PUBLIC_ORIGIN: ${BRIDGE_PUBLIC_ORIGIN:-http://localhost:8080}
       APP_URL: ${APP_URL:-http://localhost:8080}
       API_URL: ${API_URL:-http://localhost:8080/api}
       FORUM_PROVIDER: ${FORUM_PROVIDER:-discourse}
       FORUM_ORIGIN: ${FORUM_ORIGIN:-https://bbs.example.com}
       FORUM_ENTRY_PATH: ${FORUM_ENTRY_PATH:-/}
       FORUM_SSO_SECRET: ${FORUM_SSO_SECRET:-local-dev-forum-sso-secret}
+      DISCOURSE_PROVIDER_SECRET: ${DISCOURSE_PROVIDER_SECRET:-local-dev-forum-sso-secret}
       FORUM_SSO_RETURN_URL: ${FORUM_SSO_RETURN_URL:-http://127.0.0.1:8080/forums/discourse-connect}
     volumes:
       - ../../apps/api:/app
@@ -73,14 +76,12 @@ services:
     image: nginx:1.27-alpine
     container_name: ${APP_NAME:-gamemulti}-nginx
     depends_on:
-      web:
-        condition: service_healthy
       api:
         condition: service_healthy
     ports:
       - "${HOST_HTTP_PORT:-8080}:80"
     volumes:
-      - ../nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${NGINX_CONF:-../nginx/default.conf}:/etc/nginx/conf.d/default.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
       interval: 30s

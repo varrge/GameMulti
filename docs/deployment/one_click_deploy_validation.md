@@ -5,12 +5,14 @@
 - 部署入口：`infra/deploy/up.sh`
 - Compose 文件：`infra/compose/docker-compose.yml`
 - Nginx 配置：`infra/nginx/default.conf`
-- 默认目标：本地开发/验收环境，启动 `web + api + postgres + nginx`；如需 Redis，可额外启用 `queue` profile。
+- 默认目标：本地开发/验收环境，启动 `api + postgres + nginx`；如需旧 Next
+  前端，可额外启用 `web` profile；如需 Redis，可额外启用 `queue` profile。
 
 ## 前置条件
 1. 已安装 `docker` 与 `docker compose`
-2. 仓库已存在 `apps/web/package.json`
-3. `infra/compose/.env` 已存在，且 `WEB_SOURCE_DIR` 指向真实源码目录
+2. `infra/compose/.env` 已存在
+3. 如果启用 `web` profile，仓库需存在 `apps/web/package.json`，且
+   `WEB_SOURCE_DIR` 指向真实源码目录
 
 当前验证使用的关键变量：
 
@@ -18,13 +20,9 @@
 APP_NAME=gamemulti
 NODE_ENV=development
 ADMIN_API_KEY=replace-with-a-long-random-admin-key
-WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web
-WEB_PORT=3301
 HOST_HTTP_PORT=8080
 API_URL=http://localhost:8080/api
-NEXT_PUBLIC_API_BASE_URL=/api
-NEXT_PUBLIC_FORUM_ORIGIN=https://bbs.example.com
-NEXT_PUBLIC_FORUM_ENTRY_PATH=/
+FORUM_ORIGIN=https://bbs.example.com
 ```
 
 ## 一键启动命令
@@ -38,7 +36,7 @@ bash infra/deploy/up.sh
 - `docker` / `docker compose` 可用性检查
 - `infra/compose/docker-compose.yml` 存在检查
 - `infra/compose/.env` 存在检查
-- `WEB_SOURCE_DIR` 非空、目录存在、且包含 `package.json`
+- 启用 `web` profile 时，检查 `WEB_SOURCE_DIR` 目录存在、且包含 `package.json`
 - 任一检查失败立即退出，不会静默跳过
 
 ## 现场验证
@@ -49,8 +47,7 @@ bash infra/deploy/up.sh
 
 ```bash
 cd /home/yinan/.openclaw/workspace/GameMulti/infra/compose
-WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web \
-  docker compose --env-file .env -f docker-compose.yml up -d --remove-orphans
+docker compose --env-file .env -f docker-compose.yml up -d --remove-orphans
 ```
 
 关键结果：
@@ -58,7 +55,6 @@ WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web \
 ```text
 Container gamemulti-postgres  Started
 Container gamemulti-api       Started
-Container gamemulti-web       Started
 Container gamemulti-nginx     Started
 ```
 
@@ -67,8 +63,7 @@ Container gamemulti-nginx     Started
 
 ```bash
 cd /home/yinan/.openclaw/workspace/GameMulti/infra/compose
-WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web \
-  docker compose --env-file .env -f docker-compose.yml ps
+docker compose --env-file .env -f docker-compose.yml ps
 ```
 
 关键结果：
@@ -77,7 +72,6 @@ WEB_SOURCE_DIR=/home/yinan/.openclaw/workspace/GameMulti/apps/web \
 NAME                  IMAGE               STATUS                    PORTS
 gamemulti-postgres    postgres:16-alpine  Up (healthy)             5432/tcp
 gamemulti-api         node:22-alpine      Up (healthy)             3401/tcp
-gamemulti-web         node:22-alpine      Up (healthy)             3301/tcp
 gamemulti-nginx       nginx:1.27-alpine   Up (healthy)             0.0.0.0:8080->80/tcp
 ```
 
@@ -94,17 +88,16 @@ curl -I http://127.0.0.1:8080/
 HTTP/1.1 200 OK
 ```
 
-### 4. 主站账号与绑定入口
-建议继续检查以下页面是否返回 200：
+### 4. Bridge 绑定入口
+建议继续检查以下入口：
 
 ```bash
-curl -I http://127.0.0.1:8080/account
-curl -I http://127.0.0.1:8080/bindings
 curl -I 'http://127.0.0.1:8080/bind/confirm?token=demo'
 curl -I http://127.0.0.1:8080/api/healthz
+npm run smoke:bridge-api
 ```
 
-也可以在仓库根目录执行完整 smoke test：
+如果显式启用了旧 Next 前端，也可以在仓库根目录执行完整旧链路 smoke：
 
 ```bash
 npm run smoke:web-api
@@ -114,19 +107,20 @@ npm run smoke:web-api
 
 ## 手工回填项
 正式部署前，至少确认以下变量：
-- `WEB_SOURCE_DIR`：必须改成目标机器上真实的 `apps/web` 路径
 - `HOST_HTTP_PORT`：如 8080 被占用，需要改成空闲端口
 - `ADMIN_API_KEY`：必须改成高强度随机值；`/api/admin/*` 需要该 key 或 Admin 用户 Bearer token
-- `NEXT_PUBLIC_FORUM_ORIGIN` / `FORUM_ORIGIN`：改成真实论坛入口
+- `FORUM_ORIGIN`：改成真实论坛入口
+- 如启用旧 Next 前端：`WEB_SOURCE_DIR` 必须改成目标机器上真实的 `apps/web` 路径
 - 如启用队列/缓存：补齐 `REDIS_URL` 与 Redis 持久化规划
 
 ## 默认支持范围
 当前默认覆盖：
-- 以 `apps/web` 为前端源码目录启动 Next.js 开发服务
 - 以 `apps/api` 为后端源码目录启动 NestJS 开发服务
 - 默认启动 PostgreSQL 并执行 Prisma `db push` 与 seed
 - 由 Nginx 暴露统一 HTTP 入口
 - 浏览器端 API 默认使用同源 `/api`，避免远程访问时误指向访问者本机 localhost
+- `/bind/confirm?token=...` 由 Bridge API 服务端渲染，主登录态来自 Discourse
+- 可选启用 `web` profile 启动旧 Next 前端
 - 可选启用 `redis` queue profile 做本地配套依赖
 
 当前**未**默认覆盖：
@@ -150,7 +144,7 @@ docker compose --env-file .env -f docker-compose.yml down -v
 ```
 
 ## 常见排障
-### 1. WEB_SOURCE_DIR 指错
+### 1. 启用旧前端时 WEB_SOURCE_DIR 指错
 现象：脚本报 `WEB_SOURCE_DIR 不存在` 或 `缺少 package.json`
 
 处理：
@@ -164,7 +158,7 @@ docker compose --env-file .env -f docker-compose.yml down -v
 - 改 `HOST_HTTP_PORT`
 - 重新执行 `bash infra/deploy/up.sh`
 
-### 3. web 健康检查未通过
+### 3. 启用旧前端时 web 健康检查未通过
 现象：`gamemulti-web` 长时间不是 healthy
 
 处理：
@@ -172,7 +166,7 @@ docker compose --env-file .env -f docker-compose.yml down -v
 - 检查 `npm install` 是否失败
 - 检查源码目录是否完整挂载
 
-### 4. HTTP 检查失败
+### 4. Bridge HTTP 检查失败
 现象：`curl http://127.0.0.1:8080/` 不通
 
 处理：

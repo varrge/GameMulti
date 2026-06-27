@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
@@ -9,7 +9,12 @@ async function bootstrap() {
   const port = config.get<number>('PORT', 3401);
   const appUrl = config.get<string>('APP_URL', 'http://localhost:3301');
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', {
+    exclude: [
+      { path: 'bind/confirm', method: RequestMethod.GET },
+      { path: 'bind/confirm', method: RequestMethod.POST },
+    ],
+  });
   app.enableCors({
     origin: appUrl,
     credentials: true,

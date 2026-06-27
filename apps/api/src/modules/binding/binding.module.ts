@@ -8,5 +8,6 @@ import { BindingService } from './binding.service';
   imports: [AuthInfraModule, PluginAuthModule],
   controllers: [BindingController],
   providers: [BindingService],
+  exports: [BindingService],
 })
 export class BindingModule {}

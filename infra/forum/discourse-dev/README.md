@@ -48,7 +48,8 @@ Do not deploy a new forum setup to a server until this local stack can:
 - return an HTTP response from the local Discourse URL,
 - return a GameMulti SSO start URL that points to local Discourse,
 - complete the local Discourse first-run wizard and enable DiscourseConnect,
-- pass a real browser jump from GameMulti `/forums` into local Discourse,
+- pass a real browser jump from a Bridge `/bind/confirm?token=...` URL into
+  local Discourse and back to Bridge,
 - leave reproducible logs when it fails.
 
 The local `.env` file is ignored and may contain real SMTP credentials. Never

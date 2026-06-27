@@ -179,6 +179,8 @@ configure_local_sso() {
 
   local sso_return_url=${FORUM_SSO_RETURN_URL:-http://127.0.0.1:8080/forums/discourse-connect}
   local sso_secret=${FORUM_SSO_SECRET:-local-dev-forum-sso-secret}
+  local bridge_public_origin=${BRIDGE_PUBLIC_ORIGIN:-http://127.0.0.1:8080}
+  local discourse_provider_secret=${DISCOURSE_PROVIDER_SECRET:-$sso_secret}
   local admin_email=${DISCOURSE_LOCAL_ADMIN_EMAIL:-${DISCOURSE_DEVELOPER_EMAILS%%,*}}
   local site_name=${DISCOURSE_LOCAL_SITE_NAME:-GameMulti Local Forum}
   local default_locale=${DISCOURSE_DEFAULT_LOCALE:-zh_CN}
@@ -192,11 +194,15 @@ configure_local_sso() {
   compose exec -T \
     -e GM_FORUM_SSO_RETURN_URL="$sso_return_url" \
     -e GM_FORUM_SSO_SECRET="$sso_secret" \
+    -e GM_BRIDGE_PUBLIC_ORIGIN="$bridge_public_origin" \
+    -e GM_DISCOURSE_PROVIDER_SECRET="$discourse_provider_secret" \
     -e GM_DISCOURSE_ADMIN_EMAIL="$admin_email" \
     -e GM_DISCOURSE_SITE_NAME="$site_name" \
     -e GM_DISCOURSE_DEFAULT_LOCALE="$default_locale" \
     -e GM_DISCOURSE_ALLOW_USER_LOCALE="$allow_user_locale" \
     discourse bash -lc 'cd /var/www/discourse && bundle exec rails runner -' <<'RUBY'
+require "uri"
+
 def env_bool(name, default)
   value = ENV.fetch(name, default.to_s).downcase
   %w[1 true yes on].include?(value)
@@ -218,6 +224,27 @@ settings = {
 
 settings.each do |key, value|
   SiteSetting.public_send("#{key}=", value)
+end
+
+if SiteSetting.respond_to?(:enable_discourse_connect_provider=)
+  SiteSetting.enable_discourse_connect_provider = true
+end
+
+begin
+  bridge_host = URI(ENV.fetch("GM_BRIDGE_PUBLIC_ORIGIN")).host
+  provider_pair = "#{bridge_host}|#{ENV.fetch("GM_DISCOURSE_PROVIDER_SECRET")}"
+  [
+    :discourse_connect_provider_secrets,
+    :sso_provider_secrets,
+  ].each do |setting_name|
+    setter = "#{setting_name}="
+    next unless SiteSetting.respond_to?(setter)
+
+    current = SiteSetting.public_send(setting_name).to_s.split(/\r?\n/).map(&:strip).reject(&:empty?)
+    SiteSetting.public_send(setter, (current + [provider_pair]).uniq.join("\n"))
+    break
+  end
+rescue URI::InvalidURIError
 end
 
 locale_settings = {
@@ -249,6 +276,7 @@ puts({
   ok: true,
   discourse_connect_enabled: SiteSetting.enable_discourse_connect,
   discourse_connect_url: SiteSetting.discourse_connect_url,
+  discourse_connect_provider_enabled: SiteSetting.respond_to?(:enable_discourse_connect_provider) ? SiteSetting.enable_discourse_connect_provider : nil,
   default_locale: SiteSetting.respond_to?(:default_locale) ? SiteSetting.default_locale : nil,
   admin_email: admin_email,
   admin_user_found: !user.nil?,
