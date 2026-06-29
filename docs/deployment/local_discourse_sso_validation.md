@@ -1,8 +1,9 @@
 # Local Discourse SSO Validation
 
 本地验证是服务器部署前的门槛。目标不是只让容器返回 `200`，而是确认
-GameMulti 能生成指向本地 Discourse 的 DiscourseConnect URL，并在完成
-Discourse 首次初始化后通过真实浏览器完成 Bridge 绑定登录。
+Bridge 能生成指向本地 Discourse provider 的登录 URL，并在完成 Discourse
+首次初始化后通过真实浏览器完成绑定登录。论坛自身的注册/登录必须保留在 Discourse，
+不能被 GameMulti 接管。
 
 ## 当前本地地址
 
@@ -20,7 +21,6 @@ FORUM_ENTRY_PATH=/
 FORUM_SSO_SECRET=local-dev-forum-sso-secret
 DISCOURSE_PROVIDER_SECRET=local-dev-forum-sso-secret
 BRIDGE_PUBLIC_ORIGIN=http://127.0.0.1:8080
-FORUM_SSO_RETURN_URL=http://127.0.0.1:8080/forums/discourse-connect
 NEXT_PUBLIC_FORUM_ORIGIN=http://localhost
 NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 ```
@@ -42,12 +42,12 @@ npm run check:local-discourse
 - 本地 Discourse 根页可访问。
 - GameMulti `/api/healthz` 可访问。
 - GameMulti Bridge 根路径 `/` 可访问。
-- 能创建本地测试邀请码、注册测试用户、登录并生成论坛 SSO URL。
-- SSO URL 前缀是 `http://localhost/session/sso?`。
-- 能模拟 Discourse 发起的 `sso/sig`，并生成回
-  `http://localhost/session/sso_login?` 的签名跳转。
-- 输出 `discourseState.setupRequired` 和 `discourseState.ssoEndpointState`，用于判断
-  论坛是否还停在首次安装/未启用 DiscourseConnect 阶段。
+- Discourse 没有把登录委托到 `http://127.0.0.1:8080/forums/discourse-connect`。
+- Bridge `/api/auth/discourse/start` 会跳到
+  `http://localhost/session/sso_provider?...`。
+- 输出 `discourseState.setupRequired`、`legacyClientRedirect` 和
+  `providerEndpointState`，用于判断论坛是否还停在首次安装、是否错误启用了
+  DiscourseConnect client、以及 provider endpoint 是否可达。
 
 如果 `setupRequired` 是 `true`，说明 Discourse 容器已启动，但还没完成论坛初始化。
 这时不能算真实浏览器 SSO 已完成。
@@ -60,9 +60,9 @@ npm run check:local-discourse
 bash infra/forum/discourse-dev/dev.sh configure-local-sso
 ```
 
-这个命令会启用 DiscourseConnect client/provider 两种模式、写入 `FORUM_SSO_RETURN_URL`、
-`FORUM_SSO_SECRET` 和 `DISCOURSE_PROVIDER_SECRET`、关闭本地 HTTPS 强制、关闭外部头像 CDN，
-并在管理员用户已存在时把 `DISCOURSE_LOCAL_ADMIN_EMAIL` 或
+这个命令会关闭 DiscourseConnect client 登录、保留论坛本地注册/登录、启用
+DiscourseConnect provider、写入 `DISCOURSE_PROVIDER_SECRET`、关闭本地 HTTPS 强制、
+关闭外部头像 CDN，并在管理员用户已存在时把 `DISCOURSE_LOCAL_ADMIN_EMAIL` 或
 `DISCOURSE_DEVELOPER_EMAILS` 的第一个邮箱提升为管理员。
 同时会把 Discourse 默认语言设置为 `DISCOURSE_DEFAULT_LOCALE`，默认是 `zh_CN`。
 
@@ -85,19 +85,17 @@ http://localhost
 完成 Discourse 初始管理员注册和安装向导。开发邮箱使用
 `infra/forum/discourse-dev/.env` 中配置的管理员邮箱；不要把 SMTP 密码写入文档。
 
-初始化完成后进入 Discourse 管理后台，配置 DiscourseConnect：
+初始化完成后进入 Discourse 管理后台，配置 DiscourseConnect provider：
 
 | 设置项 | 本地值 |
 | --- | --- |
-| enable DiscourseConnect / SSO | enabled |
-| DiscourseConnect URL | `http://127.0.0.1:8080/forums/discourse-connect` |
-| DiscourseConnect secret | `local-dev-forum-sso-secret` |
+| enable DiscourseConnect / SSO client | disabled |
 | enable DiscourseConnect provider | enabled |
 | provider secret | `127.0.0.1\|local-dev-forum-sso-secret` |
-| consume path | `/session/sso_login` |
 
-不同 Discourse 版本后台字段名可能略有差异，但 secret 必须与 GameMulti
-`FORUM_SSO_SECRET` 完全一致。
+不同 Discourse 版本后台字段名可能略有差异，但 provider secret 必须与 Bridge
+运行环境里的 `DISCOURSE_PROVIDER_SECRET` 一致。不要启用 DiscourseConnect client；
+否则论坛登录/注册会被重定向到 GameMulti 的旧 `/forums/discourse-connect`。
 
 ## Bridge 主链路浏览器检查
 
@@ -135,7 +133,7 @@ http://localhost
 - 本地 Discourse compose 健康。
 - `npm run check:local-discourse` 通过。
 - Discourse 首次初始化完成。
-- DiscourseConnect client/provider 均已启用，secret 与 GameMulti 一致。
+- DiscourseConnect provider 已启用，client 登录保持关闭。
 - 浏览器从绑定链接可以进入 Discourse provider 登录，并回到 Bridge 完成绑定。
 
 如果只满足容器启动和脚本协议检查，但没有完成浏览器 SSO，则只能说“本地服务可运行”，

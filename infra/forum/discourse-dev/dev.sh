@@ -209,8 +209,8 @@ def env_bool(name, default)
 end
 
 settings = {
-  enable_discourse_connect: true,
-  discourse_connect_url: ENV.fetch("GM_FORUM_SSO_RETURN_URL"),
+  enable_discourse_connect: false,
+  discourse_connect_url: "",
   discourse_connect_secret: ENV.fetch("GM_FORUM_SSO_SECRET"),
   discourse_connect_csrf_protection: false,
   force_https: false,
@@ -224,6 +224,18 @@ settings = {
 
 settings.each do |key, value|
   SiteSetting.public_send("#{key}=", value)
+end
+
+local_login_settings = {
+  enable_local_logins: true,
+  invite_only: false,
+  must_approve_users: false,
+  login_required: false,
+}
+
+local_login_settings.each do |key, value|
+  setter = "#{key}="
+  SiteSetting.public_send(setter, value) if SiteSetting.respond_to?(setter)
 end
 
 if SiteSetting.respond_to?(:enable_discourse_connect_provider=)
@@ -277,6 +289,7 @@ puts({
   discourse_connect_enabled: SiteSetting.enable_discourse_connect,
   discourse_connect_url: SiteSetting.discourse_connect_url,
   discourse_connect_provider_enabled: SiteSetting.respond_to?(:enable_discourse_connect_provider) ? SiteSetting.enable_discourse_connect_provider : nil,
+  local_logins_enabled: SiteSetting.respond_to?(:enable_local_logins) ? SiteSetting.enable_local_logins : nil,
   default_locale: SiteSetting.respond_to?(:default_locale) ? SiteSetting.default_locale : nil,
   admin_email: admin_email,
   admin_user_found: !user.nil?,

@@ -9,7 +9,8 @@ GameMulti Bridge 与 Discourse 分开部署：
 - 登录打通主线：玩家打开 `/bind/confirm?token=...`，Bridge 跳到 Discourse
   `/session/sso_provider`，Discourse 登录后回到 Bridge
   `/api/auth/discourse/callback`，Bridge 设置 HttpOnly session cookie 并回到绑定页。
-- 兼容链路：旧的 `/api/forum/sso/start` 与 `/forums/discourse-connect` 暂时保留，用于过渡期验证。
+- 兼容链路：旧的 `/api/forum/sso/start` 与 `/forums/discourse-connect` 代码暂时保留，
+  但生产论坛不要启用 DiscourseConnect client 登录。
 
 不建议把生产 Discourse 塞进当前 dev compose。Discourse 对 SMTP、TLS、持久化、升级和备份有独立运维要求，拆开部署更容易回滚和排障。
 
@@ -64,7 +65,6 @@ cp infra/deploy/discourse.env.example infra/deploy/discourse.env
 | `FORUM_ORIGIN` | GameMulti 后端使用的论坛根地址，可省略，默认 `https://DISCOURSE_HOSTNAME` | 否 |
 | `FORUM_SSO_SECRET` | DiscourseConnect shared secret，默认也作为 provider secret | 是 |
 | `DISCOURSE_PROVIDER_SECRET` | Discourse 作为身份提供方时给 Bridge 使用的 secret，可省略并复用 `FORUM_SSO_SECRET` | 是 |
-| `FORUM_SSO_RETURN_URL` | DiscourseConnect URL，可省略，默认 `GAME_PUBLIC_ORIGIN + /forums/discourse-connect` | 否 |
 | `NEXT_PUBLIC_FORUM_ORIGIN` | 前端展示/跳转用论坛地址，可省略，默认 `FORUM_ORIGIN` | 否 |
 | `DISCOURSE_CONTAINER` | 论坛服务器上的 Discourse 容器名，官方默认 `app` | 否 |
 
@@ -134,12 +134,13 @@ bash infra/deploy/discourse_configure_sso.sh infra/deploy/discourse.env
 
 脚本会写入：
 
-- `enable_discourse_connect=true`
-- `discourse_connect_url=FORUM_SSO_RETURN_URL`
+- `enable_discourse_connect=false`，保留 Discourse 自己的登录/注册
+- `discourse_connect_url=""`
 - `discourse_connect_secret=FORUM_SSO_SECRET`
-- 如果 Discourse 支持，开启 `enable_discourse_connect_provider`
-- 如果 Discourse 支持，写入 `discourse_connect_provider_secrets` 或旧版
+- 开启 `enable_discourse_connect_provider`
+- 写入 `discourse_connect_provider_secrets` 或旧版
   `sso_provider_secrets`，格式为 `BRIDGE_HOST|DISCOURSE_PROVIDER_SECRET`
+- `enable_local_logins=true`
 - `force_https=true`
 - `default_locale=DISCOURSE_DEFAULT_LOCALE`，默认 `zh_CN`
 - 关闭浏览器 `Accept-Language` 对匿名用户默认语言的覆盖
@@ -148,32 +149,14 @@ bash infra/deploy/discourse_configure_sso.sh infra/deploy/discourse.env
 Discourse 自带简体中文翻译，不需要额外安装汉化插件。脚本只负责系统 UI、邮件模板
 等内置文案的默认语言；分类名、站点介绍、条款、公告帖和运营内容需要手工编辑成中文。
 
-也可以进入 Discourse 管理后台手工配置 DiscourseConnect/SSO：
+也可以进入 Discourse 管理后台手工配置：
 
-- 启用 DiscourseConnect。
-- DiscourseConnect URL 填 `https://app.example.com/forums/discourse-connect`。
-- shared secret 填 `FORUM_SSO_SECRET`。
-- 确认 Discourse SSO consume path 为 `/session/sso_login`。
+- 不启用 DiscourseConnect client / SSO 登录。
+- 启用 DiscourseConnect provider。
+- provider secret 填 `BRIDGE_HOST|DISCOURSE_PROVIDER_SECRET`，例如
+  `app.example.com|<secret>`。
 
-当前 GameMulti 代码会生成：
-
-```text
-https://forum.example.com/session/sso?return_path=...
-```
-
-Discourse 再回到 GameMulti：
-
-```text
-https://app.example.com/forums/discourse-connect?sso=...&sig=...
-```
-
-GameMulti 最后返回 Discourse：
-
-```text
-https://forum.example.com/session/sso_login?sso=...&sig=...
-```
-
-新的 Bridge 绑定页代码会生成：
+Bridge 绑定页代码会生成：
 
 ```text
 https://forum.example.com/session/sso_provider?sso=...&sig=...
@@ -196,7 +179,6 @@ FORUM_ENTRY_PATH=/
 FORUM_SSO_SECRET=replace-with-the-same-secret-as-discourse
 # DISCOURSE_PROVIDER_SECRET defaults to FORUM_SSO_SECRET unless explicitly set
 # BRIDGE_PUBLIC_ORIGIN defaults to PUBLIC_ORIGIN
-# FORUM_SSO_RETURN_URL defaults to PUBLIC_ORIGIN + /forums/discourse-connect
 # NEXT_PUBLIC_FORUM_ORIGIN defaults to FORUM_ORIGIN
 NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 ```
@@ -277,8 +259,9 @@ bash infra/deploy/up.sh
 Discourse 回滚：
 
 - 优先恢复升级前备份。
-- 如果只是配置错误，先恢复 DiscourseConnect secret/callback 配置。
-- 回滚后重新验证 `/session/sso`、`/forums/discourse-connect` 与 `/session/sso_login`。
+- 如果只是配置错误，先修正 provider secret，并确认 DiscourseConnect client 登录保持关闭。
+- 回滚后重新验证 `/session/sso_provider` 与
+  `/api/auth/discourse/callback`，并确认论坛登录/注册仍由 Discourse 自己处理。
 
 ## 常见故障
 

@@ -60,7 +60,6 @@ FORUM_SSO_SECRET=replace-with-64-hex-random-secret
 - `BRIDGE_PUBLIC_ORIGIN` 默认等于 `GAME_PUBLIC_ORIGIN`。
 - `FORUM_ORIGIN` 默认等于 `https://DISCOURSE_HOSTNAME`。
 - `NEXT_PUBLIC_FORUM_ORIGIN` 默认等于 `FORUM_ORIGIN`。
-- `FORUM_SSO_RETURN_URL` 默认等于 `GAME_PUBLIC_ORIGIN + /forums/discourse-connect`。
 - `DISCOURSE_PROVIDER_SECRET` 默认可与 `FORUM_SSO_SECRET` 相同；如果拆开，两边必须分别一致。
 
 只有分域、反向代理路径特殊或论坛入口和 hostname 不一致时，才显式覆盖这些值。
@@ -100,8 +99,7 @@ NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 
 如果使用 `infra/deploy/up.sh`，服务器 `infra/compose/.env` 里只需要写
 `PUBLIC_ORIGIN`、`FORUM_ORIGIN` 和 `FORUM_SSO_SECRET`；脚本会派生
-`BRIDGE_PUBLIC_ORIGIN`、`DISCOURSE_PROVIDER_SECRET`、`FORUM_SSO_RETURN_URL`
-和 `NEXT_PUBLIC_FORUM_ORIGIN`。
+`BRIDGE_PUBLIC_ORIGIN`、`DISCOURSE_PROVIDER_SECRET` 和 `NEXT_PUBLIC_FORUM_ORIGIN`。
 
 如果 `FORUM_SSO_SECRET` 仍是占位值，`up.sh` 会在第一次部署时随机生成并显示一次。
 把这个值保存下来，并同步写入论坛服务器的 `infra/deploy/discourse.env`。
@@ -214,7 +212,8 @@ bash infra/deploy/up.sh
 
 Discourse 配置错误优先回滚后台设置：
 
-- 关闭 DiscourseConnect，或恢复旧的 `discourse_connect_url` / secret。
+- 确认 DiscourseConnect client 登录保持关闭。
+- 移除或修正错误的 provider secret。
 - 保留 Discourse 容器和数据库，不要直接删卷。
 
 如果 Discourse 安装或升级失败，优先用 Discourse 后台备份恢复。

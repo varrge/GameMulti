@@ -32,14 +32,12 @@ set +a
 
 FORUM_ORIGIN=${FORUM_ORIGIN:-https://${DISCOURSE_HOSTNAME:-}}
 BRIDGE_PUBLIC_ORIGIN=${BRIDGE_PUBLIC_ORIGIN:-${GAME_PUBLIC_ORIGIN:-}}
-FORUM_SSO_RETURN_URL=${FORUM_SSO_RETURN_URL:-${GAME_PUBLIC_ORIGIN:-}/forums/discourse-connect}
 DISCOURSE_PROVIDER_SECRET=${DISCOURSE_PROVIDER_SECRET:-${FORUM_SSO_SECRET:-}}
 DISCOURSE_DEFAULT_LOCALE=${DISCOURSE_DEFAULT_LOCALE:-zh_CN}
 DISCOURSE_ALLOW_USER_LOCALE=${DISCOURSE_ALLOW_USER_LOCALE:-true}
 
 export FORUM_ORIGIN
 export BRIDGE_PUBLIC_ORIGIN
-export FORUM_SSO_RETURN_URL
 export DISCOURSE_PROVIDER_SECRET
 export DISCOURSE_DEFAULT_LOCALE
 export DISCOURSE_ALLOW_USER_LOCALE
@@ -73,10 +71,6 @@ if [[ "$BRIDGE_PUBLIC_ORIGIN" != "$GAME_PUBLIC_ORIGIN" ]]; then
   warn "BRIDGE_PUBLIC_ORIGIN differs from GAME_PUBLIC_ORIGIN; make sure /bind and /api route to Bridge"
 fi
 
-if [[ "$FORUM_SSO_RETURN_URL" != "$GAME_PUBLIC_ORIGIN/forums/discourse-connect" ]]; then
-  warn "FORUM_SSO_RETURN_URL is not GAME_PUBLIC_ORIGIN + /forums/discourse-connect"
-fi
-
 DISCOURSE_CONTAINER=${DISCOURSE_CONTAINER:-app}
 
 if ! docker ps --format '{{.Names}}' | grep -Fxq "$DISCOURSE_CONTAINER"; then
@@ -84,7 +78,6 @@ if ! docker ps --format '{{.Names}}' | grep -Fxq "$DISCOURSE_CONTAINER"; then
 fi
 
 docker exec \
-  -e GM_FORUM_SSO_RETURN_URL="$FORUM_SSO_RETURN_URL" \
   -e GM_FORUM_SSO_SECRET="$FORUM_SSO_SECRET" \
   -e GM_DISCOURSE_PROVIDER_SECRET="$DISCOURSE_PROVIDER_SECRET" \
   -e GM_GAME_PUBLIC_ORIGIN="$GAME_PUBLIC_ORIGIN" \
@@ -104,7 +97,6 @@ end
 game_origin = ENV.fetch("GM_GAME_PUBLIC_ORIGIN")
 bridge_origin = ENV.fetch("GM_BRIDGE_PUBLIC_ORIGIN")
 forum_origin = ENV.fetch("GM_FORUM_ORIGIN")
-callback_url = ENV.fetch("GM_FORUM_SSO_RETURN_URL")
 secret = ENV.fetch("GM_FORUM_SSO_SECRET")
 provider_secret = ENV.fetch("GM_DISCOURSE_PROVIDER_SECRET")
 
@@ -112,11 +104,22 @@ game_host = URI(game_origin).host
 bridge_host = URI(bridge_origin).host
 forum_host = URI(forum_origin).host
 
-SiteSetting.enable_discourse_connect = true
-SiteSetting.discourse_connect_url = callback_url
+SiteSetting.enable_discourse_connect = false
+SiteSetting.discourse_connect_url = ""
 SiteSetting.discourse_connect_secret = secret
 SiteSetting.discourse_connect_csrf_protection = true if SiteSetting.respond_to?(:discourse_connect_csrf_protection=)
 SiteSetting.force_https = true if SiteSetting.respond_to?(:force_https=)
+
+local_login_settings = {
+  enable_local_logins: true,
+  invite_only: false,
+  login_required: false,
+}
+
+local_login_settings.each do |key, value|
+  setter = "#{key}="
+  SiteSetting.public_send(setter, value) if SiteSetting.respond_to?(setter)
+end
 
 if SiteSetting.respond_to?(:enable_discourse_connect_provider=)
   SiteSetting.enable_discourse_connect_provider = true
@@ -155,6 +158,8 @@ puts({
   ok: true,
   enable_discourse_connect: SiteSetting.enable_discourse_connect,
   discourse_connect_url: SiteSetting.discourse_connect_url,
+  discourse_connect_provider_enabled: SiteSetting.respond_to?(:enable_discourse_connect_provider) ? SiteSetting.enable_discourse_connect_provider : nil,
+  local_logins_enabled: SiteSetting.respond_to?(:enable_local_logins) ? SiteSetting.enable_local_logins : nil,
   force_https: SiteSetting.respond_to?(:force_https) ? SiteSetting.force_https : nil,
   default_locale: SiteSetting.respond_to?(:default_locale) ? SiteSetting.default_locale : nil,
   game_host: game_host,
@@ -163,4 +168,4 @@ puts({
 }.to_json)
 RUBY
 
-echo "DiscourseConnect production settings applied."
+echo "Discourse provider production settings applied."

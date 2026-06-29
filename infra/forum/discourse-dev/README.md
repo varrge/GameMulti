@@ -66,8 +66,11 @@ bash infra/forum/discourse-dev/dev.sh configure-local-sso
 The command configures the local Discourse container for GameMulti:
 
 - enables DiscourseConnect,
-- sets the DiscourseConnect URL to `FORUM_SSO_RETURN_URL`,
-- sets the shared secret from `FORUM_SSO_SECRET`,
+- disables DiscourseConnect client login so the forum keeps its own
+  login/register flow,
+- enables DiscourseConnect provider mode for Bridge binding pages,
+- sets the provider secret from `DISCOURSE_PROVIDER_SECRET` or
+  `FORUM_SSO_SECRET`,
 - disables HTTPS forcing and the first-run wizard for local validation,
 - disables external avatar fetching so local letter avatars do not depend on
   Discourse CDN URLs,

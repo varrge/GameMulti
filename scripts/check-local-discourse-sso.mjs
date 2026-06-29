@@ -1,15 +1,6 @@
-import { createHmac } from 'node:crypto';
-
 const appBaseUrl = stripTrailingSlash(process.env.APP_BASE_URL || 'http://127.0.0.1:8080');
 const apiBaseUrl = stripTrailingSlash(process.env.API_BASE_URL || `${appBaseUrl}/api`);
 const discourseBaseUrl = stripTrailingSlash(process.env.DISCOURSE_BASE_URL || 'http://localhost');
-const adminApiKey = process.env.ADMIN_API_KEY || 'local-dev-admin-key';
-const forumSsoSecret = process.env.FORUM_SSO_SECRET || 'local-dev-forum-sso-secret';
-
-const runId = Date.now().toString(36);
-const username = `forumlocal_${runId}`;
-const email = `${username}@example.test`;
-const password = `LocalForum_${runId}_12345`;
 
 await main().catch((error) => {
   console.error(error);
@@ -18,63 +9,31 @@ await main().catch((error) => {
 
 async function main() {
   const discourseState = await inspectDiscourse();
+  assert(
+    discourseState.legacyClientRedirect === false,
+    `forum login is still delegated to GameMulti: ${discourseState.legacyClientLocation}`,
+  );
+
   await getJson('/healthz');
   await fetchOk(`${appBaseUrl}/`, 'GameMulti Bridge root');
 
-  const createdInvite = await postJson('/admin/invitations/batch-create', {
-    count: 1,
-    maxUses: 1,
-    createdBy: 'local-discourse-check',
-    remark: `local discourse check ${new Date().toISOString()}`,
-  }, { admin: true });
-
-  const inviteCode = createdInvite?.invitations?.[0]?.code;
-  assert(inviteCode, 'admin invitation batch-create did not return a code');
-
-  await postJson('/auth/register', {
-    username,
-    email,
-    password,
-    inviteCode,
+  const start = await fetch(`${apiBaseUrl}/auth/discourse/start?returnTo=/bind/confirm?token=local-check`, {
+    redirect: 'manual',
   });
-
-  const login = await postJson('/auth/login', {
-    login: username,
-    password,
-  });
-  assert(login?.token, 'login did not return token');
-
-  const start = await getJson('/forum/sso/start', login.token);
-  const expectedPrefix = `${discourseBaseUrl}/session/sso?`;
+  assert(start.status === 302, `Bridge discourse start returned ${start.status}, expected 302`);
+  const location = start.headers.get('location') || '';
+  const expectedPrefix = `${discourseBaseUrl}/session/sso_provider?`;
   assert(
-    String(start?.forumSsoUrl || '').startsWith(expectedPrefix),
-    `forumSsoUrl did not point to local Discourse: ${start?.forumSsoUrl}`,
-  );
-
-  const discoursePayload = encodeDiscoursePayload({
-    nonce: `local_discourse_nonce_${runId}`,
-    return_sso_url: `${discourseBaseUrl}/session/sso_login`,
-  });
-  const discourseSig = signDiscoursePayload(discoursePayload, forumSsoSecret);
-  const authorize = await getJson(
-    `/forum/sso/authorize?sso=${encodeURIComponent(discoursePayload)}&sig=${encodeURIComponent(discourseSig)}`,
-    login.token,
-  );
-  const returnPrefix = `${discourseBaseUrl}/session/sso_login?`;
-  assert(
-    String(authorize?.redirectUrl || '').startsWith(returnPrefix),
-    `authorize redirectUrl did not point back to local Discourse: ${authorize?.redirectUrl}`,
+    location.startsWith(expectedPrefix),
+    `Bridge did not point to local Discourse provider: ${location}`,
   );
 
   console.log(JSON.stringify({
     ok: true,
     appBaseUrl,
     discourseBaseUrl,
-    username,
-    provider: start.provider,
     discourseState,
-    forumSsoUrlPrefix: start.forumSsoUrl.slice(0, expectedPrefix.length + 12),
-    authorizeRedirectPrefix: authorize.redirectUrl.slice(0, returnPrefix.length + 12),
+    providerSsoUrlPrefix: location.slice(0, expectedPrefix.length + 12),
   }, null, 2));
 }
 
@@ -89,40 +48,36 @@ async function inspectDiscourse() {
     lower.includes('finish_installation') ||
     lower.includes('congratulations, you installed discourse');
 
-  const ssoProbe = await fetch(`${discourseBaseUrl}/session/sso_login?sso=probe&sig=probe`, {
+  const legacyClientProbe = await fetch(`${discourseBaseUrl}/session/sso?return_path=%2F`, {
+    redirect: 'manual',
+  });
+  const legacyClientLocation = legacyClientProbe.headers.get('location') || '';
+  const legacyClientRedirect = legacyClientLocation.startsWith(`${appBaseUrl}/forums/discourse-connect`);
+
+  const providerProbe = await fetch(`${discourseBaseUrl}/session/sso_provider?sso=probe&sig=probe`, {
     redirect: 'manual',
   });
 
-  let ssoEndpointState = 'reachable';
-  if (ssoProbe.status === 404) {
-    ssoEndpointState = 'not_found_until_discourseconnect_enabled';
-  } else if (ssoProbe.status >= 300 && ssoProbe.status < 400) {
-    ssoEndpointState = 'redirected';
-  } else if (ssoProbe.status >= 400) {
-    ssoEndpointState = `http_${ssoProbe.status}`;
+  let providerEndpointState = 'reachable';
+  if (providerProbe.status === 404) {
+    providerEndpointState = 'not_found_until_provider_enabled';
+  } else if (providerProbe.status >= 300 && providerProbe.status < 400) {
+    providerEndpointState = 'redirected';
+  } else if (providerProbe.status >= 400) {
+    providerEndpointState = `http_${providerProbe.status}`;
   }
 
   return {
     setupRequired,
-    ssoEndpointState,
+    legacyClientRedirect,
+    legacyClientLocation,
+    providerEndpointState,
   };
 }
 
 async function getJson(path, token) {
   return parseJson(await fetch(`${apiBaseUrl}${path}`, {
     headers: token ? { authorization: `Bearer ${token}` } : undefined,
-  }), path);
-}
-
-async function postJson(path, body, options = {}) {
-  return parseJson(await fetch(`${apiBaseUrl}${path}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(options.admin ? { 'x-gm-admin-key': adminApiKey } : {}),
-      ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
-    },
-    body: JSON.stringify(body),
   }), path);
 }
 
@@ -154,12 +109,4 @@ function assert(condition, message) {
 
 function stripTrailingSlash(value) {
   return String(value).replace(/\/+$/, '');
-}
-
-function encodeDiscoursePayload(params) {
-  return Buffer.from(new URLSearchParams(params).toString(), 'utf8').toString('base64');
-}
-
-function signDiscoursePayload(payload, secret) {
-  return createHmac('sha256', secret).update(payload).digest('hex');
 }

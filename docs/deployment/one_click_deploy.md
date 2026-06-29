@@ -103,7 +103,8 @@ DEPLOY_HEALTH_DELAY_SECONDS=3
 - `BRIDGE_PUBLIC_ORIGIN`：Bridge 公网入口，默认等于 `PUBLIC_ORIGIN`，用于生成
   Discourse provider 回调 `BRIDGE_PUBLIC_ORIGIN + /api/auth/discourse/callback`。
 - `FORUM_ORIGIN`：论坛公网入口，脚本会派生 `NEXT_PUBLIC_FORUM_ORIGIN`。
-- `FORUM_SSO_RETURN_URL`：默认派生为 `PUBLIC_ORIGIN + /forums/discourse-connect`。
+- `FORUM_SSO_RETURN_URL`：仅用于旧的 GameMulti-as-provider 兼容链路；新 Bridge
+  绑定链路不需要设置。
 - `DISCOURSE_PROVIDER_SECRET`：默认复用 `FORUM_SSO_SECRET`，用于 Discourse 作为身份提供方
   登录 Bridge 页面。
 - `NEXT_PUBLIC_API_BASE_URL`：默认用 `/api`，浏览器同源访问，不需要单独填公网 API 地址。
