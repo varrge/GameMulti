@@ -54,7 +54,6 @@ services:
       FORUM_ENTRY_PATH: ${FORUM_ENTRY_PATH:-/}
       FORUM_SSO_SECRET: ${FORUM_SSO_SECRET:-local-dev-forum-sso-secret}
       DISCOURSE_PROVIDER_SECRET: ${DISCOURSE_PROVIDER_SECRET:-local-dev-forum-sso-secret}
-      FORUM_SSO_RETURN_URL: ${FORUM_SSO_RETURN_URL:-http://127.0.0.1:8080/forums/discourse-connect}
     volumes:
       - ../../apps/api:/app
       - api_node_modules:/app/node_modules

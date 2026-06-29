@@ -188,14 +188,15 @@ npm run smoke:bridge-api
 
 浏览器检查：
 
-1. 在游戏侧或 API 创建一个真实绑定 session，拿到 `/bind/confirm?token=...`。
-2. 退出 Bridge 登录态后打开 `https://app.example.com/bind/confirm?token=...`。
-3. 确认跳转到 `https://forum.example.com/session/sso_provider?...`。
-4. 登录或确认 Discourse 当前用户。
-5. 确认回调经过 `https://app.example.com/api/auth/discourse/callback?...`。
-6. 确认回到绑定页并显示论坛用户名、游戏账号、服务器。
-7. 点击确认绑定，确认页面显示绑定完成。
-8. 用 API 或数据库确认 `ForumAccount` 已写入，且 `UserGameBinding.discourseUserId`
+1. 在游戏侧或 API 创建一个真实绑定 session，拿到 `publicBindUrl`。
+2. 确认 `publicBindUrl` 是公网 Bridge 地址，不是内网 API 地址。
+3. 退出 Bridge 登录态后打开 `publicBindUrl`。
+4. 确认跳转到 `https://forum.example.com/session/sso_provider?...`。
+5. 登录或确认 Discourse 当前用户。
+6. 确认回调经过 `https://app.example.com/api/auth/discourse/callback?...`。
+7. 确认回到绑定页并显示论坛用户名、游戏账号、服务器。
+8. 点击确认绑定，确认页面显示绑定完成。
+9. 用 API 或数据库确认 `ForumAccount` 已写入，且 `UserGameBinding.discourseUserId`
    等于 Discourse 回调里的 `external_id`。
 
 只有浏览器检查通过，才算论坛上线完成。

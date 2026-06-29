@@ -65,7 +65,8 @@ class MinecraftPluginPoCService {
         token,
         pairCode,
         expiresIn: 300,
-        bindUrl: `${this.apiBaseUrl}/bind/confirm?token=${token}`,
+        bindUrl: `/bind/confirm?token=${token}`,
+        publicBindUrl: `${this.apiBaseUrl}/bind/confirm?token=${token}`,
       },
     };
   }
@@ -112,8 +113,18 @@ class MinecraftPluginPoCService {
       endpoint: `${this.apiBaseUrl}${request.path}`,
       request,
       response: data,
-      playerMessage: `绑定码 ${data.pairCode}，或打开 ${this.apiBaseUrl}${data.bindUrl}`,
+      playerMessage: `绑定码 ${data.pairCode}，或打开 ${this.resolveBindUrl(data)}`,
     };
+  }
+
+  resolveBindUrl(response) {
+    if (response?.publicBindUrl) {
+      return response.publicBindUrl;
+    }
+    if (response?.bindUrl && /^https?:\/\//i.test(response.bindUrl)) {
+      return response.bindUrl;
+    }
+    return new URL(response?.bindUrl || '/', this.apiBaseUrl).toString();
   }
 
   async handleCommand(input, player = {}) {

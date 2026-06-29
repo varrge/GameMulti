@@ -37,7 +37,8 @@ test('binding command returns expected payload and confirmation info', () => {
   assert.equal(result.payload.displayName, 'Steve');
   assert.equal(result.response.expiresIn, 300);
   assert.match(result.response.pairCode, /^\d{6}$/);
-  assert.match(result.response.bindUrl, /^https:\/\/gamemulti\.local\/bind\/confirm\?token=/);
+  assert.match(result.response.bindUrl, /^\/bind\/confirm\?token=/);
+  assert.match(result.response.publicBindUrl, /^https:\/\/gamemulti\.local\/bind\/confirm\?token=/);
   assert.equal(plugin.bindingRequests.length, 1);
 });
 
@@ -152,6 +153,7 @@ test('requestBindingSession posts signed request and returns player message', as
           pairCode: '123456',
           expiresIn: 300,
           bindUrl: '/bind/confirm?token=token-1',
+          publicBindUrl: 'https://app.example.test/bind/confirm?token=token-1',
         }),
       };
     },
@@ -168,7 +170,7 @@ test('requestBindingSession posts signed request and returns player message', as
   assert.equal(JSON.parse(calls[0].init.body).gameUserId, 'player-1');
   assert.equal(result.response.pairCode, '123456');
   assert.match(result.playerMessage, /123456/);
-  assert.match(result.playerMessage, /\/bind\/confirm\?token=token-1/);
+  assert.match(result.playerMessage, /https:\/\/app\.example\.test\/bind\/confirm\?token=token-1/);
 });
 
 test('handleCommand maps /gm bind to live binding request', async () => {

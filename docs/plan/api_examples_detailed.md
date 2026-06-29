@@ -12,7 +12,7 @@
   "platform": "minecraft_uuid",
   "gameUserId": "550e8400-e29b-41d4-a716-446655440000",
   "displayName": "Steve",
-  "bindMode": "link"
+  "bindMode": "bind_existing"
 }
 ```
 
@@ -23,9 +23,13 @@
   "token": "token_xxx",
   "pairCode": "A7K29P",
   "expiresIn": 300,
-  "bindUrl": "https://example.com/bind?token=token_xxx"
+  "bindUrl": "/bind/confirm?token=token_xxx",
+  "publicBindUrl": "https://app.example.com/bind/confirm?token=token_xxx"
 }
 ```
+
+插件给玩家展示 `publicBindUrl`。`bindUrl` 保留为同域相对路径，方便旧客户端或
+Bridge 内部页面继续使用。
 
 ---
 
@@ -201,4 +205,3 @@
   ]
 }
 ```
-

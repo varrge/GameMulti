@@ -177,7 +177,6 @@ configure_local_sso() {
   source "$RESOLVED_ENV_FILE"
   set +a
 
-  local sso_return_url=${FORUM_SSO_RETURN_URL:-http://127.0.0.1:8080/forums/discourse-connect}
   local sso_secret=${FORUM_SSO_SECRET:-local-dev-forum-sso-secret}
   local bridge_public_origin=${BRIDGE_PUBLIC_ORIGIN:-http://127.0.0.1:8080}
   local discourse_provider_secret=${DISCOURSE_PROVIDER_SECRET:-$sso_secret}
@@ -192,7 +191,6 @@ configure_local_sso() {
   fi
 
   compose exec -T \
-    -e GM_FORUM_SSO_RETURN_URL="$sso_return_url" \
     -e GM_FORUM_SSO_SECRET="$sso_secret" \
     -e GM_BRIDGE_PUBLIC_ORIGIN="$bridge_public_origin" \
     -e GM_DISCOURSE_PROVIDER_SECRET="$discourse_provider_secret" \

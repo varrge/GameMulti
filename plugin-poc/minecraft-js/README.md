@@ -17,6 +17,7 @@ plugin-poc/minecraft-js/
 
 - `/gm bind` 命令对应的绑定会话请求载荷生成
 - 真实 `POST /api/plugin/bindings/session` HMAC 签名调用
+- 玩家可打开的 `publicBindUrl` 绑定链接输出
 - 模拟游戏命令循环：`/gm bind`、`/gm join`、`/gm quit`、`/gm heartbeat`
 - `player_join` / `player_quit` / `online_duration` 事件上报骨架
 - `heartbeat` 状态上报骨架
@@ -74,10 +75,13 @@ GM_PLAYER_NAME=Steve
 ## 最小闭环说明
 
 1. 玩家执行绑定命令，插件签名调用 `POST /api/plugin/bindings/session`
-2. 玩家上线后记录 `player_join`
-3. 定时器触发 `online_duration` 事件上报，用于主站奖励结算
-4. 插件通过 `POST /api/game-servers/heartbeat` 发送健康状态与在线人数
-5. 玩家离线时记录 `player_quit`
+2. Bridge 返回 `pairCode` 和 `publicBindUrl`，插件把它们展示给玩家
+3. 玩家上线后记录 `player_join`
+4. 定时器触发 `online_duration` 事件上报，用于主站奖励结算
+5. 插件通过 `POST /api/game-servers/heartbeat` 发送健康状态与在线人数
+6. 玩家离线时记录 `player_quit`
+
+插件链接契约见 `docs/backend/plugin_binding_link_contract.md`。
 
 ## 后续迁移建议
 

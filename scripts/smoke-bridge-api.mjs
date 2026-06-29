@@ -36,6 +36,10 @@ async function main() {
 
   const session = await createPluginBindingSession();
   summary.sessionId = session.sessionId;
+  assert(
+    session.publicBindUrl === `${appBaseUrl}/bind/confirm?token=${session.token}`,
+    `unexpected publicBindUrl: ${session.publicBindUrl}`,
+  );
 
   const unauthenticated = await fetchWithCookies(`${appBaseUrl}/bind/confirm?token=${encodeURIComponent(session.token)}`, {
     redirect: 'manual',

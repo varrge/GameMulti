@@ -85,6 +85,7 @@ export class BindingService {
       pairCode: session.pairCode,
       expiresIn: BINDING_SESSION_TTL_SECONDS,
       bindUrl: `/bind/confirm?token=${session.token}`,
+      publicBindUrl: this.publicBindUrl(session.token),
     };
   }
 
@@ -414,6 +415,17 @@ export class BindingService {
 
   private get provider() {
     return this.config.get<string>('FORUM_PROVIDER', 'discourse');
+  }
+
+  private publicBindUrl(token: string) {
+    return new URL(`/bind/confirm?token=${token}`, this.bridgePublicOrigin).toString();
+  }
+
+  private get bridgePublicOrigin() {
+    return this.config.get<string>('BRIDGE_PUBLIC_ORIGIN')
+      || this.config.get<string>('PUBLIC_ORIGIN')
+      || this.config.get<string>('APP_URL')
+      || 'http://localhost:8080';
   }
 
   private async createUniqueToken() {

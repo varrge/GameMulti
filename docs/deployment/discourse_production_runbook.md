@@ -9,8 +9,8 @@ GameMulti Bridge 与 Discourse 分开部署：
 - 登录打通主线：玩家打开 `/bind/confirm?token=...`，Bridge 跳到 Discourse
   `/session/sso_provider`，Discourse 登录后回到 Bridge
   `/api/auth/discourse/callback`，Bridge 设置 HttpOnly session cookie 并回到绑定页。
-- 兼容链路：旧的 `/api/forum/sso/start` 与 `/forums/discourse-connect` 代码暂时保留，
-  但生产论坛不要启用 DiscourseConnect client 登录。
+- 兼容链路：旧的 GameMulti-as-provider 代码暂时保留，但生产论坛不要启用
+  DiscourseConnect client 登录。
 
 不建议把生产 Discourse 塞进当前 dev compose。Discourse 对 SMTP、TLS、持久化、升级和备份有独立运维要求，拆开部署更容易回滚和排障。
 
@@ -210,12 +210,13 @@ npm run smoke:bridge-api
 
 真实浏览器检查：
 
-1. 创建一个真实绑定 session，拿到 `/bind/confirm?token=...`。
-2. 打开 `https://app.example.com/bind/confirm?token=...`。
-3. 确认先跳转到 `https://forum.example.com/session/sso_provider?...`。
-4. 确认 Discourse 回到 `https://app.example.com/api/auth/discourse/callback?sso=...&sig=...`。
-5. 确认最后回到绑定确认页，并能完成绑定。
-6. 确认 Bridge 数据库里出现论坛账号映射和游戏绑定记录，且
+1. 创建一个真实绑定 session，拿到 `publicBindUrl`。
+2. 确认 `publicBindUrl` 指向公网 Bridge 地址。
+3. 打开 `publicBindUrl`。
+4. 确认先跳转到 `https://forum.example.com/session/sso_provider?...`。
+5. 确认 Discourse 回到 `https://app.example.com/api/auth/discourse/callback?sso=...&sig=...`。
+6. 确认最后回到绑定确认页，并能完成绑定。
+7. 确认 Bridge 数据库里出现论坛账号映射和游戏绑定记录，且
    `UserGameBinding.discourseUserId` 等于 Discourse 回调里的 `external_id`。
 
 ## 备份

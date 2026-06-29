@@ -26,7 +26,8 @@
 - `/gm bind <displayName>`
   - 生成绑定会话请求载荷
   - 目标接口：`POST /api/plugin/bindings/session`
-  - 返回：`sessionId`、`token`、`pairCode`、`bindUrl`
+  - 返回：`sessionId`、`token`、`pairCode`、`bindUrl`、`publicBindUrl`
+  - 插件展示给玩家的链接必须优先使用 `publicBindUrl`
 
 ### 事件
 
@@ -70,16 +71,17 @@ node --test plugin-poc/minecraft-js/test/plugin_service.test.js
 
 1. `demo.js` 输出 `bind`、`joinEvent`、`durationEvent`、`heartbeat`、`quitEvent`
 2. `bind.endpoint` 指向 `/api/plugin/bindings/session`
-3. 事件输出里的 `eventType` 至少覆盖：
+3. `bind.response.publicBindUrl` 指向 Bridge 公网绑定页
+4. 事件输出里的 `eventType` 至少覆盖：
    - `player_join`
    - `online_duration`
    - `player_quit`
-4. `heartbeat.payload` 中带有：
+5. `heartbeat.payload` 中带有：
    - `onlineCount`
    - `queueDepth`
    - `serverId`
    - `serverCode`
-5. 自动化测试全部通过
+6. 自动化测试全部通过
 
 ## 实机接线建议
 

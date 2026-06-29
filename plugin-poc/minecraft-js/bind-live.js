@@ -16,7 +16,7 @@ async function main() {
   console.log(JSON.stringify({
     endpoint: result.endpoint,
     pairCode: result.response.pairCode,
-    bindUrl: `${plugin.apiBaseUrl}${result.response.bindUrl}`,
+    bindUrl: plugin.resolveBindUrl(result.response),
     playerMessage: result.playerMessage,
   }, null, 2));
 }

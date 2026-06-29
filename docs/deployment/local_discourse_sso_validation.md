@@ -100,30 +100,16 @@ http://localhost
 ## Bridge 主链路浏览器检查
 
 1. 确保 GameMulti 和 Discourse 都已启动，且已执行 `configure-local-sso`。
-2. 用插件 PoC 或 API 创建一个真实绑定 session，拿到 `/bind/confirm?token=...`。
-3. 打开 `http://127.0.0.1:8080/bind/confirm?token=...`。
-4. 浏览器先进入 `http://localhost/session/sso_provider?...`。
-5. 登录或确认 Discourse 当前用户。
-6. Discourse 回到 `http://127.0.0.1:8080/api/auth/discourse/callback?sso=...&sig=...`。
-7. Bridge 回到绑定确认页，显示论坛用户名、游戏账号和服务器。
-8. 点击确认绑定，页面显示绑定完成。
-9. 通过 API 或数据库确认 `ForumAccount` 已写入，且 `UserGameBinding.discourseUserId`
+2. 用插件 PoC 或 API 创建一个真实绑定 session，拿到 `publicBindUrl`。
+3. 确认 `publicBindUrl` 指向 `http://127.0.0.1:8080/bind/confirm?token=...`。
+4. 打开 `publicBindUrl`。
+5. 浏览器先进入 `http://localhost/session/sso_provider?...`。
+6. 登录或确认 Discourse 当前用户。
+7. Discourse 回到 `http://127.0.0.1:8080/api/auth/discourse/callback?sso=...&sig=...`。
+8. Bridge 回到绑定确认页，显示论坛用户名、游戏账号和服务器。
+9. 点击确认绑定，页面显示绑定完成。
+10. 通过 API 或数据库确认 `ForumAccount` 已写入，且 `UserGameBinding.discourseUserId`
    等于 Discourse 回调里的 `external_id`。
-
-## 兼容链路浏览器检查
-
-这条链路是旧方向：GameMulti 登录后进入 Discourse。过渡期可以继续跑，但它不是新主线。
-默认部署不启动旧 Next 前端；要跑这组浏览器检查，先在 GameMulti env 中设置
-`ENABLE_WEB=1`，并使用 `infra/nginx/with-web.conf`。
-
-1. 打开 `http://127.0.0.1:8080/account`。
-2. 注册或登录 GameMulti 测试用户。
-3. 打开 `http://127.0.0.1:8080/forums`。
-4. 点击“进入论坛”。
-5. 浏览器先进入 `http://localhost/session/sso?...`。
-6. Discourse 再回到 `http://127.0.0.1:8080/forums/discourse-connect?sso=...&sig=...`。
-7. GameMulti 生成签名回包后跳到 `http://localhost/session/sso_login?...`。
-8. 回到 GameMulti Admin，确认论坛账号摘要新增或激活。
 
 ## 进入服务器部署的条件
 

@@ -238,16 +238,12 @@ infra/deploy/
   - API `/api`
   - 论坛独立域名或独立入口
 
-### 论坛 SSO 类
-- `FORUM_SSO_LOGIN_PATH=/api/forum/sso/start`
-- `FORUM_SSO_CALLBACK_PATH=/forums/discourse-connect`
-- `FORUM_SSO_HEALTH_PATH=/api/forum/sso/health`
-- `FORUM_SSO_CONSUME_PATH=/session/sso_login`
-- `FORUM_SSO_EXTERNAL_UID_FIELD=external_id`
-- `FORUM_SSO_MATCH_BY=email`
-- `FORUM_SSO_NONCE_TTL_SECONDS=300`
-- `FORUM_SSO_CLOCK_SKEW_SECONDS=60`
-- `FORUM_SSO_ENABLE_DEBUG=false`
+### 论坛 Bridge 类
+- `FORUM_PROVIDER=discourse`
+- `FORUM_ENTRY_PATH=/`
+- `NEXT_PUBLIC_FORUM_ENTRY_PATH=/`
+- `DISCOURSE_PROVIDER_SECRET` 默认复用 `FORUM_SSO_SECRET`
+- Bridge 回调路径固定为 `/api/auth/discourse/callback`
 
 ### 变量模板类
 - `DB_PORT=5432`

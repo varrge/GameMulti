@@ -103,8 +103,6 @@ DEPLOY_HEALTH_DELAY_SECONDS=3
 - `BRIDGE_PUBLIC_ORIGIN`：Bridge 公网入口，默认等于 `PUBLIC_ORIGIN`，用于生成
   Discourse provider 回调 `BRIDGE_PUBLIC_ORIGIN + /api/auth/discourse/callback`。
 - `FORUM_ORIGIN`：论坛公网入口，脚本会派生 `NEXT_PUBLIC_FORUM_ORIGIN`。
-- `FORUM_SSO_RETURN_URL`：仅用于旧的 GameMulti-as-provider 兼容链路；新 Bridge
-  绑定链路不需要设置。
 - `DISCOURSE_PROVIDER_SECRET`：默认复用 `FORUM_SSO_SECRET`，用于 Discourse 作为身份提供方
   登录 Bridge 页面。
 - `NEXT_PUBLIC_API_BASE_URL`：默认用 `/api`，浏览器同源访问，不需要单独填公网 API 地址。
@@ -126,8 +124,9 @@ POSTGRES_PASSWORD=...
 
 `FORUM_SSO_SECRET` 需要复制到 Discourse 的 `infra/deploy/discourse.env`。当前过渡期同时用于：
 
-- 旧链路：GameMulti 作为 DiscourseConnect provider，主站登录后进入论坛。
-- 新链路：Discourse 作为 provider，Bridge 绑定确认页使用论坛登录态。
+- Discourse provider：Bridge 绑定确认页使用论坛登录态。
+- 兼容代码：旧 forum 模块仍保留本地账号 SSO 代码，但生产论坛不要启用
+  DiscourseConnect client 登录。
 
 如果显式设置 `DISCOURSE_PROVIDER_SECRET`，则 Discourse provider 设置和 Bridge 运行环境必须使用同一个 `DISCOURSE_PROVIDER_SECRET`。
 

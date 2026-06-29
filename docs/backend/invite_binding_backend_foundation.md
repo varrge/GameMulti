@@ -53,7 +53,7 @@ apps/api/
 1. 插件调用 `POST /api/plugin/bindings/session`
 2. 后端校验插件身份
 3. 创建 `binding_sessions`
-4. 返回 `sessionId + token + pairCode + bindUrl + expiresIn`
+4. 返回 `sessionId + token + pairCode + bindUrl + publicBindUrl + expiresIn`
 
 ### 3. Web 端查询绑定会话
 
@@ -247,7 +247,8 @@ apps/api/
   "token": "token_xxx",
   "pairCode": "482913",
   "expiresIn": 300,
-  "bindUrl": "https://example.com/bind/confirm?token=token_xxx"
+  "bindUrl": "/bind/confirm?token=token_xxx",
+  "publicBindUrl": "https://app.example.com/bind/confirm?token=token_xxx"
 }
 ```
 
