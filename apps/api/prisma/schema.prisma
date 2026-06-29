@@ -186,6 +186,7 @@ model ServerPluginClient {
   pluginVersion    String?
   protocolVersion  String?
   lastHeartbeatAt  DateTime?
+  expiresAt        DateTime?
   status           String    @default("active")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -197,6 +198,21 @@ model ServerPluginClient {
   heartbeats      GameServerHeartbeat[]
 
   @@index([serverId, status])
+  @@index([status, expiresAt])
+}
+
+model PluginInstallToken {
+  id             String    @id @default(cuid())
+  tokenHash      String    @unique
+  gameCode       String    @default("minecraft")
+  status         String    @default("active")
+  expiresAt      DateTime
+  usedAt         DateTime?
+  usedByServerId String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, expiresAt])
 }
 
 model PluginRequestNonce {

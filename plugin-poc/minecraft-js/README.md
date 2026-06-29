@@ -18,6 +18,7 @@ plugin-poc/minecraft-js/
 - `/gm bind` 命令对应的绑定会话请求载荷生成
 - 真实 `POST /api/plugin/bindings/session` HMAC 签名调用
 - 玩家可打开的 `publicBindUrl` 绑定链接输出
+- 首次安装 `installToken` claim，换取服务器专属 `clientKey/clientSecret`
 - 模拟游戏命令循环：`/gm bind`、`/gm join`、`/gm quit`、`/gm heartbeat`
 - `player_join` / `player_quit` / `online_duration` 事件上报骨架
 - `heartbeat` 状态上报骨架
@@ -82,6 +83,7 @@ GM_PLAYER_NAME=Steve
 6. 玩家离线时记录 `player_quit`
 
 插件链接契约见 `docs/backend/plugin_binding_link_contract.md`。
+插件首次安装契约见 `docs/backend/plugin_install_token_flow.md`。
 
 ## 后续迁移建议
 

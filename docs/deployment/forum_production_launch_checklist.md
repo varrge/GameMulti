@@ -153,7 +153,11 @@ bash infra/deploy/discourse_configure_sso.sh infra/deploy/discourse.env
 ```
 
 这个脚本同时会配置论坛默认语言，并开启 Discourse 作为 identity provider，
-供 Bridge 的 `/bind/confirm?token=...` 页面跳转登录。
+供 Bridge 的 `/bind/confirm?token=...` 页面跳转登录。脚本还会在论坛里创建
+“游戏绑定”分类和置顶入口帖，默认包含：
+
+- 我的游戏绑定：`https://app.example.com/bind/account`
+- 插件安装和服务器审核：`https://app.example.com/api/admin/plugin-client-generator`
 
 如果脚本提示容器不存在：
 

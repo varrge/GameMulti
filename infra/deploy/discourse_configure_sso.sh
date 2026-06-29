@@ -168,4 +168,16 @@ puts({
 }.to_json)
 RUBY
 
+LINKS_SCRIPT="$SCRIPT_DIR/discourse_apply_game_links.rb"
+if [[ -f "$LINKS_SCRIPT" ]]; then
+  docker exec \
+    -e GM_BRIDGE_PUBLIC_ORIGIN="$BRIDGE_PUBLIC_ORIGIN" \
+    -e GM_FORUM_CATEGORY_NAME="${GAMEMULTI_FORUM_CATEGORY_NAME:-游戏绑定}" \
+    -e GM_FORUM_TOPIC_TITLE="${GAMEMULTI_FORUM_TOPIC_TITLE:-游戏绑定与服务器接入}" \
+    "$DISCOURSE_CONTAINER" \
+    bash -lc 'cd /var/www/discourse && bundle exec rails runner -' < "$LINKS_SCRIPT"
+else
+  warn "forum integration script not found: $LINKS_SCRIPT"
+fi
+
 echo "Discourse provider production settings applied."

@@ -16,6 +16,7 @@
     "prisma:migrate": "npm --workspace apps/api run prisma:migrate",
     "smoke:web-api": "node scripts/smoke-web-api.mjs",
     "smoke:bridge-api": "node scripts/smoke-bridge-api.mjs",
+    "smoke:plugin-install": "node scripts/smoke-plugin-install.mjs",
     "check:local-discourse": "node scripts/check-local-discourse-sso.mjs"
   },
   "engines": {

@@ -13,6 +13,7 @@ async function bootstrap() {
     exclude: [
       { path: 'bind/confirm', method: RequestMethod.GET },
       { path: 'bind/confirm', method: RequestMethod.POST },
+      { path: 'bind/account', method: RequestMethod.GET },
     ],
   });
   app.enableCors({

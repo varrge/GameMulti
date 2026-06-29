@@ -1,10 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { encryptSecret } from '../../security/secret-vault';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   async listUsers(keyword?: string) {
     const where = this.buildUserSearchWhere(keyword);
@@ -102,6 +108,8 @@ export class AdminService {
         serverName: server.serverName,
         status: server.status,
         region: server.region,
+        endpointHost: server.endpointHost,
+        endpointPort: server.endpointPort,
         game: server.game,
         pluginClients: server.pluginClients.map((client) => ({
           id: client.id,
@@ -109,6 +117,7 @@ export class AdminService {
           pluginVersion: client.pluginVersion,
           protocolVersion: client.protocolVersion,
           lastHeartbeatAt: client.lastHeartbeatAt,
+          expiresAt: client.expiresAt,
           status: client.status,
           updatedAt: client.updatedAt,
         })),
@@ -116,6 +125,132 @@ export class AdminService {
         counts: server._count,
       };
     });
+  }
+
+  async createPluginClient(params: {
+    serverCode: string;
+    pluginVersion?: string;
+    protocolVersion?: string;
+    expiresInHours?: number;
+  }) {
+    const serverCode = params.serverCode.trim();
+    const server = await this.prisma.gameServer.findUnique({
+      where: { serverCode },
+      include: { game: true },
+    });
+
+    if (!server) {
+      throw new NotFoundException('Game server not found');
+    }
+    if (server.status !== 'active' || server.game.status !== 'active') {
+      throw new BadRequestException('Game server is not active');
+    }
+
+    const clientSecret = `gmps_${randomBytes(32).toString('base64url')}`;
+    const expiresInHours = params.expiresInHours ?? 24;
+    const expiresAt = expiresInHours > 0
+      ? new Date(Date.now() + expiresInHours * 60 * 60 * 1000)
+      : null;
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const clientKey = `gmpc_${this.slug(server.serverCode)}_${randomBytes(9).toString('base64url')}`;
+
+      try {
+        const client = await this.prisma.serverPluginClient.create({
+          data: {
+            serverId: server.id,
+            clientKey,
+            clientSecretHash: encryptSecret(clientSecret, this.appSecret),
+            pluginVersion: params.pluginVersion?.trim() || 'temporary',
+            protocolVersion: params.protocolVersion?.trim() || '2026-06-mvp',
+            expiresAt,
+            status: 'active',
+          },
+        });
+
+        return {
+          server: {
+            id: server.id,
+            serverCode: server.serverCode,
+            serverName: server.serverName,
+            gameCode: server.game.code,
+          },
+          pluginClient: {
+            id: client.id,
+            clientKey: client.clientKey,
+            clientSecret,
+            status: client.status,
+            pluginVersion: client.pluginVersion,
+            protocolVersion: client.protocolVersion,
+            expiresAt: client.expiresAt,
+          },
+          bridgePublicOrigin: this.bridgePublicOrigin,
+        };
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new BadRequestException('Failed to allocate plugin client key');
+  }
+
+  async createPluginInstallToken(params: {
+    gameCode?: string;
+    expiresInHours?: number;
+  }) {
+    const gameCode = params.gameCode?.trim() || 'minecraft';
+    const game = await this.prisma.game.findUnique({ where: { code: gameCode } });
+    if (!game || game.status !== 'active') {
+      throw new NotFoundException('Game not found');
+    }
+
+    const installToken = `gmit_${randomBytes(32).toString('base64url')}`;
+    const expiresInHours = params.expiresInHours ?? 24;
+    const token = await this.prisma.pluginInstallToken.create({
+      data: {
+        tokenHash: this.hashToken(installToken),
+        gameCode,
+        expiresAt: new Date(Date.now() + expiresInHours * 60 * 60 * 1000),
+      },
+    });
+
+    return {
+      id: token.id,
+      installToken,
+      gameCode: token.gameCode,
+      expiresAt: token.expiresAt,
+      status: token.status,
+    };
+  }
+
+  async updateGameServerStatus(serverId: string, status: string) {
+    const server = await this.prisma.gameServer.update({
+      where: { id: serverId },
+      data: { status },
+      include: {
+        game: true,
+        pluginClients: {
+          orderBy: { updatedAt: 'desc' },
+        },
+      },
+    });
+
+    return {
+      id: server.id,
+      serverCode: server.serverCode,
+      serverName: server.serverName,
+      status: server.status,
+      game: server.game,
+      pluginClients: server.pluginClients.map((client) => ({
+        id: client.id,
+        clientKey: client.clientKey,
+        status: client.status,
+        expiresAt: client.expiresAt,
+      })),
+    };
   }
 
   async listPluginEvents(filters: {
@@ -237,5 +372,24 @@ export class AdminService {
         },
       ],
     };
+  }
+
+  private slug(value: string) {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'server';
+  }
+
+  private hashToken(token: string) {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private get appSecret() {
+    return this.config.get<string>('APP_SECRET', 'replace-with-a-long-random-secret');
+  }
+
+  private get bridgePublicOrigin() {
+    return this.config.get<string>('BRIDGE_PUBLIC_ORIGIN')
+      || this.config.get<string>('PUBLIC_ORIGIN')
+      || this.config.get<string>('APP_URL')
+      || 'http://localhost:8080';
   }
 }

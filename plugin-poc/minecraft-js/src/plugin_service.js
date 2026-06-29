@@ -7,6 +7,8 @@ class MinecraftPluginPoCService {
     serverCode = 'cn-mc-01',
     pluginClientKey = 'demo-client',
     pluginClientSecret = 'demo-secret',
+    publicHost = null,
+    publicPort = 25565,
     now = () => new Date(),
     fetchImpl = globalThis.fetch,
     randomBytes = crypto.randomBytes,
@@ -16,6 +18,8 @@ class MinecraftPluginPoCService {
     this.serverCode = serverCode;
     this.pluginClientKey = pluginClientKey;
     this.pluginClientSecret = pluginClientSecret;
+    this.publicHost = publicHost;
+    this.publicPort = publicPort;
     this.now = now;
     this.fetchImpl = fetchImpl;
     this.randomBytes = randomBytes;
@@ -23,6 +27,55 @@ class MinecraftPluginPoCService {
     this.bindingRequests = [];
     this.eventQueue = [];
     this.statusReports = [];
+  }
+
+  async claimInstallation({
+    installToken,
+    serverName,
+    serverCode = this.serverCode,
+    publicHost = this.publicHost,
+    publicPort = this.publicPort,
+    pluginVersion = 'temporary',
+    protocolVersion = '2026-06-mvp',
+    region,
+  }) {
+    if (!this.fetchImpl) {
+      throw this.businessError('FETCH_UNAVAILABLE', 'fetch implementation is required');
+    }
+    if (!installToken || !serverName) {
+      throw this.businessError('INVALID_ARGUMENT', 'installToken and serverName are required');
+    }
+
+    const response = await this.fetchImpl(`${this.apiBaseUrl}/api/plugin/installations/claim`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        installToken,
+        serverName,
+        serverCode,
+        publicHost,
+        publicPort,
+        pluginVersion,
+        protocolVersion,
+        region,
+      }),
+    });
+    const data = await this.parseJsonResponse(response);
+    if (!response.ok) {
+      const message = data?.message || `Plugin installation claim failed with HTTP ${response.status}`;
+      const error = this.businessError('PLUGIN_INSTALL_CLAIM_FAILED', message);
+      error.status = response.status;
+      error.response = data;
+      throw error;
+    }
+
+    this.serverCode = data.server.serverCode;
+    this.pluginClientKey = data.pluginClient.clientKey;
+    this.pluginClientSecret = data.pluginClient.clientSecret;
+    this.publicHost = publicHost;
+    this.publicPort = publicPort;
+
+    return data;
   }
 
   createBindingCommand({ gameCode = 'minecraft', platform = 'java', playerUuid, displayName }) {
@@ -341,6 +394,10 @@ class MinecraftPluginPoCService {
         onlineCount,
         queueDepth,
         sentAt: this.now().toISOString(),
+        metadata: {
+          publicHost: this.publicHost,
+          publicPort: this.publicPort,
+        },
       },
     };
 

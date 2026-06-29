@@ -7,6 +7,7 @@ ENV_FILE="$SCRIPT_DIR/.env"
 ENV_EXAMPLE="$SCRIPT_DIR/.env.example"
 RESOLVED_ENV_FILE="$SCRIPT_DIR/.env.resolved"
 PROJECT_NAME=${DISCOURSE_DEV_PROJECT_NAME:-gamemulti-discourse-dev}
+REPO_ROOT=$(cd "$SCRIPT_DIR/../../.." && pwd)
 
 usage() {
   cat <<'EOF'
@@ -293,6 +294,15 @@ puts({
   admin_user_found: !user.nil?,
 }.to_json)
 RUBY
+
+  local links_script="$REPO_ROOT/infra/deploy/discourse_apply_game_links.rb"
+  if [[ -f "$links_script" ]]; then
+    compose exec -T \
+      -e GM_BRIDGE_PUBLIC_ORIGIN="$bridge_public_origin" \
+      -e GM_FORUM_CATEGORY_NAME="${GAMEMULTI_FORUM_CATEGORY_NAME:-游戏绑定}" \
+      -e GM_FORUM_TOPIC_TITLE="${GAMEMULTI_FORUM_TOPIC_TITLE:-游戏绑定与服务器接入}" \
+      discourse bash -lc 'cd /var/www/discourse && bundle exec rails runner -' < "$links_script"
+  fi
 }
 
 command_name=${1:-}

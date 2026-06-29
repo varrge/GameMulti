@@ -135,6 +135,51 @@ test('signed plugin request matches API signature contract', () => {
   assert.equal(request.headers['x-gm-signature'], expectedSignature);
 });
 
+test('claimInstallation stores issued plugin credentials', async () => {
+  const calls = [];
+  const plugin = new MinecraftPluginPoCService({
+    apiBaseUrl: 'http://127.0.0.1:8080',
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          server: {
+            id: 'server-1',
+            serverCode: 'survival-01',
+            serverName: 'Survival 01',
+            status: 'pending',
+            gameCode: 'minecraft',
+          },
+          pluginClient: {
+            id: 'client-1',
+            clientKey: 'gmpc_survival',
+            clientSecret: 'gmps_secret',
+            status: 'active',
+          },
+          message: 'Server is pending admin approval',
+        }),
+      };
+    },
+  });
+
+  const result = await plugin.claimInstallation({
+    installToken: 'gmit_token',
+    serverName: 'Survival 01',
+    serverCode: 'survival-01',
+    publicHost: 'mc.example.com',
+    publicPort: 25565,
+  });
+
+  assert.equal(calls[0].url, 'http://127.0.0.1:8080/api/plugin/installations/claim');
+  assert.equal(JSON.parse(calls[0].init.body).publicHost, 'mc.example.com');
+  assert.equal(result.server.status, 'pending');
+  assert.equal(plugin.serverCode, 'survival-01');
+  assert.equal(plugin.pluginClientKey, 'gmpc_survival');
+  assert.equal(plugin.pluginClientSecret, 'gmps_secret');
+});
+
 test('requestBindingSession posts signed request and returns player message', async () => {
   const calls = [];
   const plugin = new MinecraftPluginPoCService({

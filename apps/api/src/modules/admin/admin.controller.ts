@@ -1,5 +1,8 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AdminGuard } from '../../auth/admin.guard';
+import { CreatePluginInstallTokenDto } from './dto/create-plugin-install-token.dto';
+import { CreatePluginClientDto } from './dto/create-plugin-client.dto';
+import { UpdateGameServerStatusDto } from './dto/update-game-server-status.dto';
 import { AdminService } from './admin.service';
 
 @Controller('admin')
@@ -20,6 +23,21 @@ export class AdminController {
   @Get('game-servers')
   listGameServers() {
     return this.adminService.listGameServers();
+  }
+
+  @Post('game-servers/:id/status')
+  updateGameServerStatus(@Param('id') id: string, @Body() dto: UpdateGameServerStatusDto) {
+    return this.adminService.updateGameServerStatus(id, dto.status);
+  }
+
+  @Post('plugin-clients')
+  createPluginClient(@Body() dto: CreatePluginClientDto) {
+    return this.adminService.createPluginClient(dto);
+  }
+
+  @Post('plugin-install-tokens')
+  createPluginInstallToken(@Body() dto: CreatePluginInstallTokenDto) {
+    return this.adminService.createPluginInstallToken(dto);
   }
 
   @Get('plugin-events')

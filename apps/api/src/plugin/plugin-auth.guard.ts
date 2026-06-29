@@ -58,6 +58,9 @@ export class PluginAuthGuard implements CanActivate {
     if (!client || client.status !== 'active' || client.server.status !== 'active' || client.server.game.status !== 'active') {
       throw new UnauthorizedException('Plugin client is not active');
     }
+    if (client.expiresAt && client.expiresAt <= new Date()) {
+      throw new UnauthorizedException('Plugin client expired');
+    }
 
     const body = this.canonicalBody(request.body);
     const pluginSecret = this.decryptPluginSecret(client.clientSecretHash);

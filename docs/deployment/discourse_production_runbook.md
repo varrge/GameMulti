@@ -145,6 +145,8 @@ bash infra/deploy/discourse_configure_sso.sh infra/deploy/discourse.env
 - `default_locale=DISCOURSE_DEFAULT_LOCALE`，默认 `zh_CN`
 - 关闭浏览器 `Accept-Language` 对匿名用户默认语言的覆盖
 - 如果 Discourse 支持，会把 GameMulti 域名加入 DiscourseConnect 允许跳转域名。
+- 创建“游戏绑定”分类和置顶入口帖，链接到 Bridge 的 `/bind/account` 和
+  `/api/admin/plugin-client-generator`。
 
 Discourse 自带简体中文翻译，不需要额外安装汉化插件。脚本只负责系统 UI、邮件模板
 等内置文案的默认语言；分类名、站点介绍、条款、公告帖和运营内容需要手工编辑成中文。

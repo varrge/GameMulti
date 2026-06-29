@@ -31,7 +31,7 @@ export class BridgePagesController {
 
     const user = await this.bridgeAuth.currentUser(request);
     if (!user) {
-      response.redirect(302, this.loginUrl(token));
+      response.redirect(302, this.loginUrl(`/bind/confirm?token=${token}`));
       return;
     }
 
@@ -54,7 +54,7 @@ export class BridgePagesController {
 
     const user = await this.bridgeAuth.currentUser(request);
     if (!user) {
-      response.redirect(302, this.loginUrl(token));
+      response.redirect(302, this.loginUrl(`/bind/confirm?token=${token}`));
       return;
     }
 
@@ -72,6 +72,20 @@ export class BridgePagesController {
     }
   }
 
+  @Get('account')
+  async accountPage(@Req() request: Request, @Res() response: Response) {
+    response.type('html');
+
+    const user = await this.bridgeAuth.currentUser(request);
+    if (!user) {
+      response.redirect(302, this.loginUrl('/bind/account'));
+      return;
+    }
+
+    const bindings = await this.bindingService.listDiscourseUserBindings(user.discourseUserId);
+    response.status(200).send(this.renderAccount(user, bindings));
+  }
+
   private async loadSession(token: string) {
     try {
       return await this.bindingService.findByToken(token);
@@ -80,8 +94,42 @@ export class BridgePagesController {
     }
   }
 
-  private loginUrl(token: string) {
-    return `/api/auth/discourse/start?returnTo=${encodeURIComponent(`/bind/confirm?token=${token}`)}`;
+  private loginUrl(returnTo: string) {
+    return `/api/auth/discourse/start?returnTo=${encodeURIComponent(returnTo)}`;
+  }
+
+  private renderAccount(
+    user: BridgeCurrentUser,
+    bindings: Array<{
+      bindStatus: string;
+      verifiedAt: Date | null;
+      gameAccount: {
+        gameUserId: string;
+        displayName: string | null;
+        platform: string;
+        game: { name: string };
+      };
+      server: { serverName: string } | null;
+    }>,
+  ) {
+    const items = bindings.length
+      ? bindings.map((binding) => `
+        <div class="item">
+          <strong>${this.escape(binding.gameAccount.displayName || binding.gameAccount.gameUserId)}</strong>
+          <span>${this.escape(binding.gameAccount.game.name)} / ${this.escape(binding.server?.serverName || '-')}</span>
+          <span>${this.escape(binding.gameAccount.platform)} / ${this.escape(binding.bindStatus)}</span>
+        </div>
+      `).join('')
+      : '<p class="message">当前论坛账号还没有绑定游戏账号。</p>';
+
+    return this.page('我的游戏绑定', `
+      <section class="panel">
+        <p class="eyebrow">GameMulti Bridge</p>
+        <h1>我的游戏绑定</h1>
+        <p class="message">论坛账号：${this.escape(user.username)}</p>
+        <div class="list">${items}</div>
+      </section>
+    `);
   }
 
   private renderConfirm(
@@ -177,6 +225,10 @@ export class BridgePagesController {
     button { width: 100%; border: 0; background: #f27d26; color: #000; padding: 14px 18px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; cursor: pointer; }
     button:disabled { cursor: not-allowed; opacity: .45; }
     .message { color: rgba(255,255,255,.68); line-height: 1.7; }
+    .list { display: grid; gap: 12px; margin-top: 20px; }
+    .item { display: grid; gap: 6px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 14px; }
+    .item strong { font-size: 18px; }
+    .item span { color: rgba(255,255,255,.66); overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
