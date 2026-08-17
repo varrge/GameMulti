@@ -26,6 +26,7 @@ export class PluginClientGeneratorController {
     .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
     .message { margin-top: 16px; color: rgba(255,255,255,.68); line-height: 1.6; }
     .error { color: #ff8888; }
+    h2 { margin: 26px 0 12px; font-size: 18px; text-transform: uppercase; }
   </style>
 </head>
 <body>
@@ -78,6 +79,15 @@ export class PluginClientGeneratorController {
       Config
       <textarea id="result" readonly placeholder="生成后这里只显示一次 clientSecret"></textarea>
     </label>
+    <h2>Deploy Update</h2>
+    <div class="actions">
+      <button class="secondary" id="loadDeployStatus" type="button">更新状态</button>
+      <button id="triggerDeployUpdate" type="button">一键更新</button>
+    </div>
+    <label>
+      Deploy Status
+      <textarea id="deployStatus" readonly placeholder="更新代理未配置时，这里会显示 disabled"></textarea>
+    </label>
   </main>
   <script>
     const adminKey = document.querySelector('#adminKey');
@@ -92,6 +102,8 @@ export class PluginClientGeneratorController {
     const servers = document.querySelector('#servers');
     const message = document.querySelector('#message');
     const copyConfig = document.querySelector('#copyConfig');
+    const deployStatus = document.querySelector('#deployStatus');
+    let deployPollTimer;
 
     function setMessage(text, error) {
       message.textContent = text || '';
@@ -235,6 +247,46 @@ export class PluginClientGeneratorController {
     copyConfig.addEventListener('click', async () => {
       await navigator.clipboard.writeText(result.value);
       setMessage('Copied.');
+    });
+
+    function renderDeployStatus(data) {
+      deployStatus.value = JSON.stringify(data, null, 2);
+    }
+
+    async function loadDeployStatus() {
+      try {
+        setMessage('Loading deploy status...');
+        const data = await adminRequest('/admin/deploy/status');
+        renderDeployStatus(data);
+        setMessage('Deploy status loaded.');
+        return data;
+      } catch (error) {
+        setMessage(error.message, true);
+        return null;
+      }
+    }
+
+    function pollDeployStatus() {
+      window.clearTimeout(deployPollTimer);
+      deployPollTimer = window.setTimeout(async () => {
+        const data = await loadDeployStatus();
+        if (!data || data.running) {
+          pollDeployStatus();
+        }
+      }, 5000);
+    }
+
+    document.querySelector('#loadDeployStatus').addEventListener('click', loadDeployStatus);
+
+    document.querySelector('#triggerDeployUpdate').addEventListener('click', async () => {
+      if (!window.confirm('确认从远端拉取代码并重启 GameMulti？')) return;
+      try {
+        setMessage('Deploy update started...');
+        renderDeployStatus(await adminRequest('/admin/deploy/update', { method: 'POST' }));
+        pollDeployStatus();
+      } catch (error) {
+        setMessage(error.message, true);
+      }
     });
   </script>
 </body>

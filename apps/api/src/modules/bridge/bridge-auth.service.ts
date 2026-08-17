@@ -11,12 +11,17 @@ import {
   verifyDiscoursePayload,
 } from '../../security/discourse-sso';
 import { issueAuthToken, verifyAuthToken } from '../../security/auth-token';
+import { BindingService } from '../binding/binding.service';
+import { bindingTokenFromReturnTo, safeBridgeReturnTo } from './return-to';
 
 const SSO_STATE_TTL_SECONDS = 5 * 60;
 const BRIDGE_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 type SignedState = {
   nonce: string;
+  purpose: 'bridge_login' | 'binding_confirm';
+  bindingSessionId: string | null;
+  serverId: string | null;
   returnTo: string;
   exp: number;
 };
@@ -35,13 +40,27 @@ export class BridgeAuthService {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly bindingService: BindingService,
   ) {}
 
-  createDiscourseLoginRedirect(response: Response, returnTo?: string) {
+  async createDiscourseLoginRedirect(response: Response, returnTo?: string) {
+    const safeReturnTo = safeBridgeReturnTo(returnTo, this.bridgePublicOrigin);
+    const bindingToken = bindingTokenFromReturnTo(safeReturnTo, this.bridgePublicOrigin);
+    const bindingContext = bindingToken
+      ? await this.bindingService.beginDiscourseAuthentication(bindingToken)
+      : null;
     const state: SignedState = {
-      nonce: randomBytes(24).toString('hex'),
-      returnTo: this.safeReturnTo(returnTo),
-      exp: Math.floor(Date.now() / 1000) + SSO_STATE_TTL_SECONDS,
+      nonce: bindingContext?.nonce || randomBytes(24).toString('hex'),
+      purpose: bindingContext ? 'binding_confirm' : 'bridge_login',
+      bindingSessionId: bindingContext?.sessionId || null,
+      serverId: bindingContext?.serverId || null,
+      returnTo: safeReturnTo,
+      exp: bindingContext
+        ? Math.min(
+          Math.floor(bindingContext.expiresAt.getTime() / 1000),
+          Math.floor(Date.now() / 1000) + SSO_STATE_TTL_SECONDS,
+        )
+        : Math.floor(Date.now() / 1000) + SSO_STATE_TTL_SECONDS,
     };
 
     response.cookie(this.ssoStateCookieName, this.signState(state), {
@@ -88,6 +107,20 @@ export class BridgeAuthService {
       admin: payload.admin || null,
       moderator: payload.moderator || null,
     });
+    const bindingToken = bindingTokenFromReturnTo(state.returnTo, this.bridgePublicOrigin);
+    if (bindingToken) {
+      if (state.purpose !== 'binding_confirm' || !state.bindingSessionId || !state.serverId) {
+        throw new UnauthorizedException('Invalid binding SSO state context');
+      }
+      await this.bindingService.consumeDiscourseAuthentication({
+        nonce: state.nonce,
+        purpose: state.purpose,
+        sessionId: state.bindingSessionId,
+        serverId: state.serverId,
+      }, user);
+    } else if (state.purpose !== 'bridge_login' || state.bindingSessionId || state.serverId) {
+      throw new UnauthorizedException('Invalid bridge SSO state context');
+    }
 
     response.clearCookie(this.ssoStateCookieName, this.cookieOptions());
     response.cookie(
@@ -391,7 +424,18 @@ export class BridgeAuthService {
     }
 
     try {
-      return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as SignedState;
+      const state = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Partial<SignedState>;
+      if (
+        typeof state.nonce !== 'string'
+        || (state.purpose !== 'bridge_login' && state.purpose !== 'binding_confirm')
+        || (state.bindingSessionId !== null && typeof state.bindingSessionId !== 'string')
+        || (state.serverId !== null && typeof state.serverId !== 'string')
+        || typeof state.returnTo !== 'string'
+        || typeof state.exp !== 'number'
+      ) {
+        return null;
+      }
+      return state as SignedState;
     } catch {
       return null;
     }
@@ -411,13 +455,6 @@ export class BridgeAuthService {
     const prefix = `${name}=`;
     const match = cookies.find((entry) => entry.startsWith(prefix));
     return match ? decodeURIComponent(match.slice(prefix.length)) : null;
-  }
-
-  private safeReturnTo(value?: string) {
-    if (!value || !value.startsWith('/') || value.startsWith('//') || value.length > 512) {
-      return '/';
-    }
-    return value;
   }
 
   private cookieOptions() {

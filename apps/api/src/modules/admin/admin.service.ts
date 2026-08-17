@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
@@ -346,6 +346,31 @@ export class AdminService {
     };
   }
 
+  async getDeployStatus() {
+    if (!this.deployAgentConfigured) {
+      return {
+        enabled: false,
+        message: 'DEPLOY_AGENT_URL and DEPLOY_AGENT_TOKEN are not configured',
+      };
+    }
+
+    return {
+      enabled: true,
+      ...(await this.deployAgentRequest('/status', 'GET')),
+    };
+  }
+
+  async triggerDeployUpdate() {
+    if (!this.deployAgentConfigured) {
+      throw new BadRequestException('Deploy agent is not configured');
+    }
+
+    return {
+      enabled: true,
+      ...(await this.deployAgentRequest('/update', 'POST')),
+    };
+  }
+
   private buildUserSearchWhere(keyword?: string): Prisma.UserWhereInput {
     const normalized = String(keyword || '').trim();
     if (!normalized) {
@@ -391,5 +416,50 @@ export class AdminService {
       || this.config.get<string>('PUBLIC_ORIGIN')
       || this.config.get<string>('APP_URL')
       || 'http://localhost:8080';
+  }
+
+  private async deployAgentRequest(path: string, method: 'GET' | 'POST') {
+    const url = new URL(path, this.deployAgentUrl).toString();
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method,
+        headers: {
+          'x-gm-deploy-token': this.deployAgentToken,
+        },
+      });
+    } catch (error) {
+      throw new ServiceUnavailableException(error instanceof Error ? error.message : 'Deploy agent is unreachable');
+    }
+
+    const text = await response.text();
+    const data = this.parseJsonResponse(text);
+    if (!response.ok) {
+      throw new ServiceUnavailableException(data?.message || 'Deploy agent request failed');
+    }
+    return data;
+  }
+
+  private parseJsonResponse(text: string) {
+    if (!text) {
+      return null;
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { message: text };
+    }
+  }
+
+  private get deployAgentConfigured() {
+    return Boolean(this.deployAgentUrl && this.deployAgentToken && !this.deployAgentToken.startsWith('replace-with-'));
+  }
+
+  private get deployAgentUrl() {
+    return this.config.get<string>('DEPLOY_AGENT_URL', '').trim();
+  }
+
+  private get deployAgentToken() {
+    return this.config.get<string>('DEPLOY_AGENT_TOKEN', '').trim();
   }
 }

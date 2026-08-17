@@ -7,8 +7,8 @@ export class BridgeAuthController {
   constructor(private readonly bridgeAuth: BridgeAuthService) {}
 
   @Get('start')
-  start(@Query('returnTo') returnTo: string | undefined, @Res() response: Response) {
-    response.redirect(302, this.bridgeAuth.createDiscourseLoginRedirect(response, returnTo));
+  async start(@Query('returnTo') returnTo: string | undefined, @Res() response: Response) {
+    response.redirect(302, await this.bridgeAuth.createDiscourseLoginRedirect(response, returnTo));
   }
 
   @Get('callback')

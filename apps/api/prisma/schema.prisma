@@ -31,6 +31,10 @@ enum BindingSessionStatus {
   confirmed
   expired
   cancelled
+  conflict
+  revoked
+  denied
+  unavailable
 }
 
 enum UserGameBindingStatus {
@@ -261,6 +265,14 @@ model BindingSession {
   status                  BindingSessionStatus @default(pending)
   gameAccountSnapshot     Json?
   expiresAt               DateTime
+  authNonceHash            String?              @unique
+  authExpiresAt            DateTime?
+  authPurpose              String?
+  authBindingSessionId     String?
+  authServerId             String?
+  authenticatedAt          DateTime?
+  authenticatedDiscourseUserId String?
+  authenticatedServerId    String?
   usedAt                  DateTime?
   usedByUserId            String?
   usedByDiscourseUserId   String?

@@ -53,4 +53,14 @@ export class AdminController {
   getForumSummary() {
     return this.adminService.getForumSummary();
   }
+
+  @Get('deploy/status')
+  getDeployStatus() {
+    return this.adminService.getDeployStatus();
+  }
+
+  @Post('deploy/update')
+  triggerDeployUpdate() {
+    return this.adminService.triggerDeployUpdate();
+  }
 }

@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { BindingService } from '../binding/binding.service';
+import { requiresBindingAuthentication } from './binding-confirm-access';
 import { BridgeAuthService, BridgeCurrentUser } from './bridge-auth.service';
 
 @Controller('bind')
@@ -30,7 +31,10 @@ export class BridgePagesController {
     }
 
     const user = await this.bridgeAuth.currentUser(request);
-    if (!user) {
+    if (!user || requiresBindingAuthentication({
+      hasCurrentUser: true,
+      nextAction: session.nextAction,
+    })) {
       response.redirect(302, this.loginUrl(`/bind/confirm?token=${token}`));
       return;
     }

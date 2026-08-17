@@ -1,11 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BindingSessionStatus, ForumAccountSyncStatus, Prisma, UserGameBindingStatus } from '@prisma/client';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { AuthenticatedPluginClient } from '../../plugin/plugin-client.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertBindingAuthenticationContext } from './binding-context';
+import { mapBindingStatus } from './binding-status';
 
 const BINDING_SESSION_TTL_SECONDS = 5 * 60;
+export const BINDING_AUTH_PURPOSE = 'binding_confirm';
 const bindingSessionInclude = {
   game: true,
   server: true,
@@ -89,6 +92,136 @@ export class BindingService {
     };
   }
 
+  async beginDiscourseAuthentication(token: string) {
+    const session = await this.prisma.bindingSession.findUnique({ where: { token } });
+    if (!session) {
+      throw new NotFoundException('Binding session not found');
+    }
+    if (session.status !== BindingSessionStatus.pending) {
+      throw new BadRequestException('Binding session is not pending');
+    }
+    if (new Date() > session.expiresAt) {
+      await this.prisma.bindingSession.update({
+        where: { id: session.id },
+        data: { status: BindingSessionStatus.expired },
+      });
+      throw new BadRequestException('Binding session expired');
+    }
+
+    const nonce = randomBytes(24).toString('hex');
+    const authExpiresAt = new Date(Math.min(
+      session.expiresAt.getTime(),
+      Date.now() + BINDING_SESSION_TTL_SECONDS * 1000,
+    ));
+    await this.prisma.bindingSession.update({
+      where: { id: session.id },
+      data: {
+        authNonceHash: this.hashAuthNonce(nonce),
+        authExpiresAt,
+        authPurpose: BINDING_AUTH_PURPOSE,
+        authBindingSessionId: session.id,
+        authServerId: session.serverId,
+        authenticatedAt: null,
+        authenticatedDiscourseUserId: null,
+        authenticatedServerId: null,
+      },
+    });
+
+    return {
+      nonce,
+      purpose: BINDING_AUTH_PURPOSE,
+      sessionId: session.id,
+      serverId: session.serverId,
+      expiresAt: authExpiresAt,
+    };
+  }
+
+  async consumeDiscourseAuthentication(
+    context: { nonce: string; purpose: string; sessionId: string; serverId: string },
+    identity: DiscourseBindingIdentity,
+  ) {
+    const normalized = this.normalizeDiscourseIdentity(identity);
+    const nonceHash = this.hashAuthNonce(this.normalizeRequiredString(context.nonce, 'nonce'));
+    const purpose = this.normalizeRequiredString(context.purpose, 'purpose');
+    const sessionId = this.normalizeRequiredString(context.sessionId, 'sessionId');
+    const serverId = this.normalizeRequiredString(context.serverId, 'serverId');
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const session = await tx.bindingSession.findUnique({ where: { authNonceHash: nonceHash } });
+      if (!session) {
+        throw new NotFoundException('Binding authentication context not found');
+      }
+      if (session.status !== BindingSessionStatus.pending) {
+        throw new BadRequestException('Binding session is not pending');
+      }
+      if (!session.authExpiresAt || new Date() > session.authExpiresAt || new Date() > session.expiresAt) {
+        await tx.bindingSession.updateMany({
+          where: { id: session.id, status: BindingSessionStatus.pending, authNonceHash: nonceHash },
+          data: {
+            status: BindingSessionStatus.expired,
+            authNonceHash: null,
+            authExpiresAt: null,
+            authPurpose: null,
+            authBindingSessionId: null,
+            authServerId: null,
+          },
+        });
+        return { outcome: 'expired' as const };
+      }
+      if (
+        purpose !== BINDING_AUTH_PURPOSE
+        || session.authPurpose !== purpose
+        || session.id !== sessionId
+        || session.authBindingSessionId !== sessionId
+        || session.serverId !== serverId
+        || session.authServerId !== serverId
+      ) {
+        throw new BadRequestException('Binding authentication context mismatch');
+      }
+
+      const consumed = await tx.bindingSession.updateMany({
+        where: {
+          id: session.id,
+          status: BindingSessionStatus.pending,
+          authNonceHash: nonceHash,
+          authPurpose: purpose,
+          authBindingSessionId: sessionId,
+          authServerId: serverId,
+          authenticatedAt: null,
+        },
+        data: {
+          authNonceHash: null,
+          authExpiresAt: null,
+          authPurpose: null,
+          authBindingSessionId: null,
+          authServerId: null,
+          authenticatedAt: new Date(),
+          authenticatedDiscourseUserId: normalized.discourseUserId,
+          authenticatedServerId: serverId,
+        },
+      });
+      if (consumed.count !== 1) {
+        throw new BadRequestException('Binding authentication context already consumed');
+      }
+
+      return {
+        outcome: 'authenticated' as const,
+        sessionId: session.id,
+        token: session.token,
+        serverId: session.serverId,
+      };
+    });
+
+    if (result.outcome === 'expired') {
+      throw new BadRequestException('Binding authentication context expired');
+    }
+    return {
+      sessionId: result.sessionId,
+      token: result.token,
+      serverId: result.serverId,
+    };
+  }
+
   async findByToken(token: string) {
     const session = await this.prisma.bindingSession.findUnique({
       where: { token },
@@ -112,10 +245,14 @@ export class BindingService {
     return this.confirmBindingForDiscourseUser(identity, sessionId);
   }
 
-  async confirmBindingForDiscourseUser(identity: DiscourseBindingIdentity, sessionId: string) {
+  async confirmBindingForDiscourseUser(
+    identity: DiscourseBindingIdentity,
+    sessionId: string,
+    requireDiscourseContext = true,
+  ) {
     const discourseIdentity = this.normalizeDiscourseIdentity(identity);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const session = await tx.bindingSession.findUnique({
         where: { id: sessionId },
         include: bindingSessionInclude,
@@ -132,8 +269,16 @@ export class BindingService {
           where: { id: session.id },
           data: { status: BindingSessionStatus.expired },
         });
-        throw new BadRequestException('Binding session expired');
+        return { outcome: 'expired' as const };
       }
+      assertBindingAuthenticationContext({
+        requireDiscourseContext,
+        authenticatedAt: session.authenticatedAt,
+        authenticatedDiscourseUserId: session.authenticatedDiscourseUserId,
+        authenticatedServerId: session.authenticatedServerId,
+        discourseUserId: discourseIdentity.discourseUserId,
+        serverId: session.serverId,
+      });
 
       const normalizedGameUserId = this.normalizeGameUserId(session.gameUserId);
       const gameAccount = await tx.gameAccount.upsert({
@@ -168,7 +313,14 @@ export class BindingService {
         existingOtherBinding
         && !(await this.bindingBelongsToDiscourseUser(tx, existingOtherBinding, discourseIdentity.discourseUserId))
       ) {
-        throw new BadRequestException('Game account is already bound to another user');
+        await tx.bindingSession.update({
+          where: { id: session.id },
+          data: {
+            status: BindingSessionStatus.conflict,
+            confirmedGameAccountId: gameAccount.id,
+          },
+        });
+        return { outcome: 'conflict' as const };
       }
 
       const bindingData = {
@@ -214,8 +366,16 @@ export class BindingService {
         },
       });
 
-      return binding;
+      return { outcome: 'bound' as const, binding };
     });
+
+    if (result.outcome === 'expired') {
+      throw new BadRequestException('Binding session expired');
+    }
+    if (result.outcome === 'conflict') {
+      throw new BadRequestException('Game account is already bound to another user');
+    }
+    return result.binding;
   }
 
   async listUserBindings(userId: string) {
@@ -286,6 +446,7 @@ export class BindingService {
     bindMode: string;
     status: BindingSessionStatus;
     expiresAt: Date;
+    authenticatedAt?: Date | null;
     game: { code: string; name: string };
     server: { serverCode: string; serverName: string };
   }) {
@@ -297,7 +458,12 @@ export class BindingService {
       gameUserId: session.gameUserId,
       displayName: session.displayName,
       bindMode: session.bindMode,
-      status: session.status,
+      ...mapBindingStatus({
+        status: session.status,
+        expiresAt: session.expiresAt,
+        authenticatedAt: session.authenticatedAt,
+      }),
+      sessionStatus: session.status,
       expiresAt: session.expiresAt,
       expired: new Date() > session.expiresAt,
     };
@@ -305,6 +471,10 @@ export class BindingService {
 
   private normalizeGameUserId(value: string) {
     return value.trim().toLowerCase();
+  }
+
+  private hashAuthNonce(nonce: string) {
+    return createHash('sha256').update(nonce, 'utf8').digest('hex');
   }
 
   private normalizeDiscourseIdentity(identity: DiscourseBindingIdentity): Required<DiscourseBindingIdentity> {
