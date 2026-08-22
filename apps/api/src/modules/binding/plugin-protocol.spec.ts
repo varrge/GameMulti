@@ -191,6 +191,15 @@ test('plugin guard returns stable approval, blocked, protocol, and clock errors'
   assert.equal(error.getStatus(), 401);
   assert.equal(error.getResponse().code, 'AUTHENTICATION_FAILED');
 
+  const { 'x-gm-protocol-version': _protocolVersion, ...withoutProtocol } = headers;
+  error = await guardError(guardWithClient(base), pluginRequest({ ...withoutProtocol, 'x-gm-signature': '00'.repeat(32) }));
+  assert.equal(error.getStatus(), 401);
+  assert.equal(error.getResponse().code, 'AUTHENTICATION_FAILED');
+
+  error = await guardError(guardWithClient(base), pluginRequest(withoutProtocol));
+  assert.equal(error.getStatus(), 426);
+  assert.equal(error.getResponse().code, 'PROTOCOL_UNSUPPORTED');
+
   error = await guardError(guardWithClient(base), pluginRequest(headers));
   assert.equal(error.getStatus(), 403);
   assert.equal(error.getResponse().code, 'SERVER_PENDING_APPROVAL');

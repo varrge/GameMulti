@@ -109,10 +109,16 @@ paths:
                   type: string
                 platform:
                   type: string
+                  minLength: 1
+                  maxLength: 32
                 gameUserId:
                   type: string
+                  minLength: 1
+                  maxLength: 128
                 displayName:
                   type: string
+                  minLength: 1
+                  maxLength: 128
                 bindMode:
                   type: string
                   enum: [register_new, bind_existing]

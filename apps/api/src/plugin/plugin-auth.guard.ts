@@ -37,15 +37,6 @@ export class PluginAuthGuard implements CanActivate {
     if (!clientKey || !timestamp || !nonce || !signature) {
       throw this.authenticationFailed('Missing plugin signature headers');
     }
-    if (!protocolVersion) {
-      throw new PluginApiError(
-        426,
-        PLUGIN_ERROR_CODES.protocolUnsupported,
-        'Missing plugin protocol version',
-        false,
-        { supportedVersions: this.supportedProtocolVersions() },
-      );
-    }
     if (!/^[0-9a-f]{64}$/.test(nonce) || !/^[0-9a-f]{64}$/.test(signature)) {
       throw this.authenticationFailed('Invalid plugin nonce or signature format');
     }
@@ -90,6 +81,15 @@ export class PluginAuthGuard implements CanActivate {
     );
     if (!valid) {
       throw this.authenticationFailed('Invalid plugin signature');
+    }
+    if (!protocolVersion) {
+      throw new PluginApiError(
+        426,
+        PLUGIN_ERROR_CODES.protocolUnsupported,
+        'Missing plugin protocol version',
+        false,
+        { supportedVersions: this.supportedProtocolVersions() },
+      );
     }
 
     if (client.server.status === 'pending') {

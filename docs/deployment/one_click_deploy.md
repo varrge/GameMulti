@@ -103,7 +103,7 @@ newgrp docker
 
 ```env
 APP_NAME=gamemulti
-NODE_ENV=development
+NODE_ENV=production
 PUBLIC_ORIGIN=http://localhost:8080
 FORUM_ORIGIN=https://bbs.example.com
 HOST_HTTP_PORT=8080
@@ -263,7 +263,7 @@ npm run smoke:bridge-api
 
 ## 已知限制
 
-- 当前 `api` 服务以开发模式启动，首次 `npm install` 会比正式镜像慢
+- 当前生产 Compose 会在容器启动时安装依赖并构建 API；固定镜像流水线仍待补齐
 - 如显式启用旧 `web` profile，Next 也会以开发模式启动
 - 如果宿主机已有其他服务占用 `HOST_HTTP_PORT`，外部 HTTP 校验可能被宿主机级代理或端口转发干扰
 - 如需队列/缓存，需手动加 `--profile queue`
