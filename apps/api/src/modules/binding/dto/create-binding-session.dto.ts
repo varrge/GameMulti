@@ -2,6 +2,10 @@ import { IsIn, IsOptional, IsString, Length } from 'class-validator';
 
 export class CreateBindingSessionDto {
   @IsString()
+  @Length(8, 128)
+  requestId!: string;
+
+  @IsString()
   serverCode!: string;
 
   @IsString()

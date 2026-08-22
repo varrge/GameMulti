@@ -85,15 +85,24 @@ paths:
     post:
       summary: 插件发起绑定会话
       security:
-        - pluginSignature: []
+        - pluginClientKey: []
+          pluginTimestamp: []
+          pluginNonce: []
+          pluginSignature: []
+          pluginProtocolVersion: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [serverCode, gameCode, platform, gameUserId, displayName, bindMode]
+              required: [requestId, serverCode, gameCode, platform, gameUserId, bindMode]
               properties:
+                requestId:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+                  description: Stable per-attempt idempotency key. Retries use the same value with a new HMAC nonce.
                 serverCode:
                   type: string
                 gameCode:
@@ -106,7 +115,7 @@ paths:
                   type: string
                 bindMode:
                   type: string
-                  enum: [register, bind_existing]
+                  enum: [register_new, bind_existing]
       responses:
         '201':
           description: 创建成功
@@ -115,11 +124,75 @@ paths:
               schema:
                 $ref: '#/components/schemas/BindingSessionCreated'
         '401':
-          description: 插件鉴权失败
+          description: 插件凭证或签名失败
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/PluginErrorResponse'
+        '403':
+          description: 服务器待审核或已阻塞
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginErrorResponse'
+        '409':
+          description: nonce 重放或 requestId 与原请求不匹配
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginErrorResponse'
+        '426':
+          description: 插件协议不受支持
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginErrorResponse'
+  /api/plugin/bindings/{sessionId}:
+    get:
+      summary: 插件按会话 ID 查询自身服务器的绑定状态
+      security:
+        - pluginClientKey: []
+          pluginTimestamp: []
+          pluginNonce: []
+          pluginSignature: []
+          pluginProtocolVersion: []
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 不含 binding token 的绑定状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginBindingSessionView'
+        '404':
+          description: 会话不存在或不属于当前插件客户端/服务器
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginErrorResponse'
+        '401':
+          description: 插件凭证或签名失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginErrorResponse'
+        '403':
+          description: 服务器待审核或已阻塞
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginErrorResponse'
+        '426':
+          description: 插件协议不受支持
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginErrorResponse'
   /api/bindings/session/by-token:
     get:
       summary: 根据 token 查询绑定会话
@@ -212,10 +285,26 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
+    pluginClientKey:
+      type: apiKey
+      in: header
+      name: X-GM-Client-Key
+    pluginTimestamp:
+      type: apiKey
+      in: header
+      name: X-GM-Timestamp
+    pluginNonce:
+      type: apiKey
+      in: header
+      name: X-GM-Nonce
     pluginSignature:
       type: apiKey
       in: header
-      name: x-plugin-signature
+      name: X-GM-Signature
+    pluginProtocolVersion:
+      type: apiKey
+      in: header
+      name: X-GM-Protocol-Version
   schemas:
     UserProfile:
       type: object
@@ -233,7 +322,7 @@ components:
           enum: [active, disabled, banned]
     BindingSessionCreated:
       type: object
-      required: [sessionId, token, pairCode, expiresIn, bindUrl]
+      required: [sessionId, token, pairCode, expiresIn, bindUrl, publicBindUrl]
       properties:
         sessionId:
           type: string
@@ -245,30 +334,69 @@ components:
           type: integer
         bindUrl:
           type: string
+        publicBindUrl:
+          type: string
           format: uri
     BindingSessionView:
+      allOf:
+        - $ref: '#/components/schemas/BindingSessionDetails'
+        - type: object
+          required: [id]
+          properties:
+            id:
+              type: string
+    PluginBindingSessionView:
+      allOf:
+        - $ref: '#/components/schemas/BindingSessionDetails'
+        - type: object
+          required: [sessionId]
+          properties:
+            sessionId:
+              type: string
+    BindingSessionDetails:
       type: object
-      required: [sessionId, gameCode, platform, gameUserId, status, expiresAt, canConfirm]
+      required: [game, server, platform, gameUserId, status, sessionStatus, recoverable, nextAction, expiresAt, expired]
       properties:
-        sessionId:
-          type: string
-        gameCode:
-          type: string
-        serverCode:
-          type: string
+        game:
+          type: object
+          required: [code, name]
+          properties:
+            code:
+              type: string
+            name:
+              type: string
+        server:
+          type: object
+          required: [serverCode, serverName]
+          properties:
+            serverCode:
+              type: string
+            serverName:
+              type: string
         platform:
           type: string
         gameUserId:
           type: string
         displayName:
           type: string
+          nullable: true
+        bindMode:
+          type: string
         status:
           type: string
-          enum: [pending, confirmed, expired, cancelled]
+          enum: [pending, bound, expired, cancelled, conflict, revoked, denied, unavailable]
+        sessionStatus:
+          type: string
+          enum: [pending, confirmed, expired, cancelled, conflict, revoked, denied, unavailable]
+        recoverable:
+          type: boolean
+        nextAction:
+          type: string
+          enum: [authenticate_with_discourse, confirm_binding, enter_game_or_community, return_to_source, start_new_binding, contact_operations_or_unbind, rebind_or_view_reason, view_authorization_requirements, retry_later]
         expiresAt:
           type: string
           format: date-time
-        canConfirm:
+        expired:
           type: boolean
     ErrorResponse:
       type: object
@@ -278,3 +406,22 @@ components:
           type: string
         message:
           type: string
+    PluginErrorResponse:
+      type: object
+      required: [code, message, retryable, requestId]
+      properties:
+        code:
+          type: string
+          enum: [AUTHENTICATION_FAILED, CLOCK_SKEW, NONCE_REPLAY, SERVER_PENDING_APPROVAL, SERVER_BLOCKED, RATE_LIMITED, INVALID_REQUEST, PROTOCOL_UNSUPPORTED, SERVICE_UNAVAILABLE, IDEMPOTENCY_CONFLICT]
+        message:
+          type: string
+        retryable:
+          type: boolean
+        requestId:
+          type: string
+        serverTime:
+          type: integer
+          description: Unix epoch seconds; present for CLOCK_SKEW.
+        details:
+          type: object
+          additionalProperties: true

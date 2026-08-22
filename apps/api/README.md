@@ -111,6 +111,7 @@ GET /api/admin/users/:id # admin
 
 ```text
 POST /api/plugin/bindings/session
+GET  /api/plugin/bindings/:sessionId # HMAC; only the owning plugin client/server; no token returned
 GET  /api/bindings/session/by-token
 POST /api/bindings/session/by-pair-code
 POST /api/bindings/confirm
@@ -124,11 +125,14 @@ GET  /api/me/game-bindings
 ```text
 X-GM-Client-Key: demo-client
 X-GM-Timestamp: <unix seconds>
-X-GM-Nonce: <random nonce>
+X-GM-Nonce: <64 lowercase hex chars from 32 random bytes>
 X-GM-Signature: <hex hmac sha256>
+X-GM-Protocol-Version: 2026-06-mvp
 ```
 
-`X-GM-Nonce` 在同一插件客户端下只能使用一次。服务端会在允许的时间窗口内记录已使用 nonce，重复请求会返回 `401`，用于阻止签名请求被重放。
+`X-GM-Nonce` 在同一插件客户端下只能使用一次。服务端会在允许的时间窗口内记录已使用 nonce，重复请求返回 `409 NONCE_REPLAY`。协议版本必须与凭证和 `PLUGIN_PROTOCOL_VERSIONS` 匹配，否则返回 `426 PROTOCOL_UNSUPPORTED`。待审核服务器返回 `403 SERVER_PENDING_APPROVAL`，blocked/disabled 返回 `403 SERVER_BLOCKED`，凭证或签名错误返回 `401 AUTHENTICATION_FAILED`。插件错误体固定为 `{ code, message, retryable, requestId, serverTime?, details? }`。
+
+创建绑定时还必须在 JSON body 中包含 8-128 字符 `requestId`。响应丢失后以相同 `requestId`、新 timestamp 和新 nonce 重试；相同 client 的同一键返回原会话，而不同请求内容复用该键返回 `409 IDEMPOTENCY_CONFLICT`。
 
 签名 payload：
 
@@ -139,6 +143,8 @@ TIMESTAMP
 NONCE
 SHA256_HEX(BODY)
 ```
+
+`SHA256_HEX(BODY)` 必须基于实际发送的 UTF-8 请求字节计算。服务端保留原始 body 并直接验签，不会对解析后的 JSON 重新序列化；GET 状态查询使用空 body 的 SHA-256。
 
 seed 默认插件凭据：
 
@@ -177,9 +183,9 @@ curl http://127.0.0.1:3401/api/me \
 创建绑定 session 的签名示例：
 
 ```bash
-BODY='{"serverCode":"cn-mc-01","gameCode":"minecraft","platform":"java","gameUserId":"uuid-demo","displayName":"Steve","bindMode":"bind_existing"}'
+BODY='{"requestId":"bind-request-001","serverCode":"cn-mc-01","gameCode":"minecraft","platform":"java","gameUserId":"uuid-demo","displayName":"Steve","bindMode":"bind_existing"}'
 TS=$(date +%s)
-NONCE=$(openssl rand -hex 8)
+NONCE=$(openssl rand -hex 32)
 SIG=$(BODY="$BODY" TS="$TS" NONCE="$NONCE" node -e "const crypto=require('crypto'); const body=process.env.BODY; const payload=['POST','/api/plugin/bindings/session',process.env.TS,process.env.NONCE,crypto.createHash('sha256').update(body).digest('hex')].join('\n'); console.log(crypto.createHmac('sha256','demo-secret').update(payload).digest('hex'))")
 curl -X POST http://127.0.0.1:3401/api/plugin/bindings/session \
   -H 'Content-Type: application/json' \
@@ -187,6 +193,7 @@ curl -X POST http://127.0.0.1:3401/api/plugin/bindings/session \
   -H "X-GM-Timestamp: $TS" \
   -H "X-GM-Nonce: $NONCE" \
   -H "X-GM-Signature: $SIG" \
+  -H 'X-GM-Protocol-Version: 2026-06-mvp' \
   -d "$BODY"
 ```
 

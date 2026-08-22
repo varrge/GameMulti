@@ -17,6 +17,8 @@ plugin-poc/minecraft-js/
 
 - `/gm bind` 命令对应的绑定会话请求载荷生成
 - 真实 `POST /api/plugin/bindings/session` HMAC 签名调用
+- 绑定创建 `requestId` 幂等键与 `X-GM-Protocol-Version` 协议头
+- HMAC `GET /api/plugin/bindings/{sessionId}` 状态查询
 - 玩家可打开的 `publicBindUrl` 绑定链接输出
 - 首次安装 `installToken` claim，换取服务器专属 `clientKey/clientSecret`
 - 模拟游戏命令循环：`/gm bind`、`/gm join`、`/gm quit`、`/gm heartbeat`
@@ -69,6 +71,7 @@ GM_API_BASE_URL=http://127.0.0.1:8080
 GM_SERVER_CODE=cn-mc-01
 GM_PLUGIN_CLIENT_KEY=demo-client
 GM_PLUGIN_CLIENT_SECRET=demo-secret
+GM_PROTOCOL_VERSION=2026-06-mvp
 GM_PLAYER_UUID=poc-player-001
 GM_PLAYER_NAME=Steve
 ```

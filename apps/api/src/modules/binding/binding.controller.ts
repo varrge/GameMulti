@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../../auth/auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../../auth/current-user.decorator';
 import { AuthenticatedPluginClient, PluginClient } from '../../plugin/plugin-client.decorator';
@@ -20,6 +20,15 @@ export class BindingController {
     @Body() dto: CreateBindingSessionDto,
   ) {
     return this.bindingService.createSession(pluginClient, dto);
+  }
+
+  @Get('plugin/bindings/:sessionId')
+  @UseGuards(PluginAuthGuard)
+  findForPlugin(
+    @PluginClient() pluginClient: AuthenticatedPluginClient,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.bindingService.findForPlugin(pluginClient, sessionId);
   }
 
   @Get('bindings/session/by-token')

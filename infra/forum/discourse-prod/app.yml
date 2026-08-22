@@ -1,0 +1,51 @@
+templates:
+  - "templates/postgres.template.yml"
+  - "templates/redis.template.yml"
+  - "templates/web.template.yml"
+  - "templates/web.ratelimited.template.yml"
+
+expose:
+  # The VPS/1Panel edge terminates TLS and proxies this private origin port.
+  # Bind only the VM LAN IPv4 and keep the host firewall allowlist in place.
+  - "192.168.110.243:1050:80"
+
+params:
+  db_default_text_search_config: "pg_catalog.english"
+
+env:
+  LC_ALL: en_US.UTF-8
+  LANG: en_US.UTF-8
+  LANGUAGE: en_US.UTF-8
+  DISCOURSE_DEFAULT_LOCALE: zh_CN
+  DISCOURSE_HOSTNAME: "bbs.game-mp.cn"
+  DISCOURSE_DEVELOPER_EMAILS: "__DISCOURSE_EMAIL__"
+  DISCOURSE_SMTP_ADDRESS: smtp.163.com
+  DISCOURSE_SMTP_PORT: 465
+  DISCOURSE_SMTP_USER_NAME: "__DISCOURSE_EMAIL__"
+  DISCOURSE_SMTP_PASSWORD: "__DISCOURSE_SMTP_PASSWORD__"
+  DISCOURSE_SMTP_FORCE_TLS: true
+  DISCOURSE_SMTP_OPENSSL_VERIFY_MODE: peer
+  DISCOURSE_NOTIFICATION_EMAIL: "__DISCOURSE_EMAIL__"
+  DISCOURSE_FORCE_HTTPS: true
+
+volumes:
+  - volume:
+      host: /var/discourse/shared/standalone
+      guest: /shared
+  - volume:
+      host: /var/discourse/shared/standalone/log/var-log
+      guest: /var/log
+  - volume:
+      host: /var/discourse/shared/standalone/config/onepanel-real-ip.conf
+      guest: /etc/nginx/conf.d/outlets/before-server/40-onepanel-real-ip.conf
+
+hooks:
+  after_code:
+    - exec:
+        cd: $home/plugins
+        cmd:
+          - git clone https://github.com/discourse/docker_manager.git
+
+run:
+  - exec: echo "Beginning of custom commands"
+  - exec: echo "End of custom commands"

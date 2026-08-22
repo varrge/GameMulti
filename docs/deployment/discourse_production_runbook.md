@@ -6,6 +6,9 @@ GameMulti Bridge 与 Discourse 分开部署：
 
 - GameMulti Bridge：继续由 `infra/deploy/up.sh` 启动 API、Postgres、Nginx；旧 Next 主站默认不部署，只在设置 `ENABLE_WEB=1` 或 `COMPOSE_PROFILES=web` 时启用。
 - Discourse：独立服务器或独立 VM，使用官方 `discourse_docker` 安装方式。
+- 当前家庭服务器方案不再运行 Caddy：Discourse 直接发布 `1050/tcp`，Bridge
+  直接发布 `1051/tcp`；公网 VPS 上的 1Panel 统一终止 TLS、按域名反代，并作为
+  唯一允许访问两个回源端口的来源。
 - 登录打通主线：玩家打开 `/bind/confirm?token=...`，Bridge 跳到 Discourse
   `/session/sso_provider`，Discourse 登录后回到 Bridge
   `/api/auth/discourse/callback`，Bridge 设置 HttpOnly session cookie 并回到绑定页。
@@ -34,9 +37,11 @@ GameMulti Bridge 与 Discourse 分开部署：
 - 已按 `docs/deployment/local_discourse_sso_validation.md` 完成本地 Discourse
   首次初始化、DiscourseConnect 配置和真实浏览器 SSO 检查。只拿到本地
   Discourse HTTP 200 不算验收通过。
-- 一台独立论坛服务器，推荐至少 1 GB RAM，生产建议 2 GB+。
+- 一台独立论坛服务器。Discourse 官方安装文档要求至少 1 GB RAM 且配置 swap；
+  本项目生产建议至少 2 vCPU / 2 GB RAM / 40 GB SSD，预算允许则 4 GB RAM 更稳。
 - 论坛域名，例如 `forum.example.com`，DNS A/AAAA 记录已指向论坛服务器。
-- 服务器开放 `80/tcp` 和 `443/tcp`。
+- 直接部署公网 TLS 时，服务器开放 `80/tcp` 和 `443/tcp`。使用 VPS/1Panel
+  前置方案时，源站只开放 `1050/tcp`、`1051/tcp` 给 VPS 固定 IP，不能向全网开放。
 - 可用 SMTP。Discourse 生产环境没有可用邮件基本不可运营。
 - Bridge 对外地址已确定，例如 `https://app.example.com`。
 - Bridge Discourse provider 回调可公网访问：`https://app.example.com/api/auth/discourse/callback`。
@@ -194,6 +199,58 @@ bash infra/deploy/up.sh
 默认只会启动 Bridge API、Postgres 和 Nginx。旧 Next 前端不是新主线，生产不要默认启用；
 确实需要临时访问旧页面时再设置 `ENABLE_WEB=1` 并确认 `NGINX_CONF=../nginx/with-web.conf`。
 
+## VPS/1Panel 前置方案
+
+当前生产链路为：
+
+```text
+bbs.game-mp.cn:443 -> VPS 1Panel -> game.game-mp.cn:1050 -> Discourse
+sso.game-mp.cn:443 -> VPS 1Panel -> game.game-mp.cn:1051 -> Bridge
+```
+
+家庭服务器不再需要 Caddy。Bridge 私有环境使用：
+
+```env
+HOST_HTTP_PORT=192.168.110.243:1051
+DEPLOY_HEALTH_URL=http://192.168.110.243:1051/api/healthz
+NGINX_CONF=../nginx/onepanel-origin.conf
+```
+
+Discourse 的 `/var/discourse/containers/app.yml` 使用：
+
+```yaml
+expose:
+  - "192.168.110.243:1050:80"
+```
+
+1Panel 两个反向代理必须保留原始域名并声明公网协议：
+
+```nginx
+proxy_set_header Host $host;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-Host $host;
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Real-IP $remote_addr;
+```
+
+Docker 发布端口会绕过一部分普通 `ufw` 规则。安装仓库提供的
+`gamemulti-origin-firewall.service.example`，通过 `DOCKER-USER` 只允许 1Panel VPS：
+
+```bash
+sudo cp infra/deploy/gamemulti-origin-firewall.service.example \
+  /etc/systemd/system/gamemulti-origin-firewall.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now gamemulti-origin-firewall.service
+```
+
+Bridge 使用 `infra/nginx/onepanel-origin.conf`，它只信任 `64.90.1.22` 提供的
+`X-Forwarded-For` 和 `X-Forwarded-Proto`。Discourse 模板也通过 Nginx real-ip 配置只信任
+这个 VPS；不要扩大为任意网段。
+
+部署到其他机器时，先修改单元里的 `INGRESS_PROXY_IP`、`INGRESS_ORIGIN_IP`、两份
+Nginx 配置里的可信代理 IP 和脚本绝对路径。两个服务都显式绑定源站 LAN IPv4，避免
+同时发布到 IPv6。不要在来源限制生效前停止旧入口代理或发布 `1050/1051`。
+
 ## 验证
 
 服务级检查：
@@ -202,6 +259,15 @@ bash infra/deploy/up.sh
 curl -I https://forum.example.com/
 curl -I https://app.example.com/
 curl -fsS https://app.example.com/api/healthz
+```
+
+VPS/1Panel 方案还应在 VPS 本机验证两个回源，并从非 VPS 网络确认回源端口被拒绝：
+
+```bash
+curl -I -H 'Host: bbs.game-mp.cn' -H 'X-Forwarded-Proto: https' \
+  http://game.game-mp.cn:1050/
+curl -fsS -H 'Host: sso.game-mp.cn' -H 'X-Forwarded-Proto: https' \
+  http://game.game-mp.cn:1051/api/healthz
 ```
 
 GameMulti 侧 smoke：
@@ -265,6 +331,9 @@ Discourse 回滚：
 - 如果只是配置错误，先修正 provider secret，并确认 DiscourseConnect client 登录保持关闭。
 - 回滚后重新验证 `/session/sso_provider` 与
   `/api/auth/discourse/callback`，并确认论坛登录/注册仍由 Discourse 自己处理。
+
+VPS/1Panel 直连回源方案回滚时，先恢复原入口代理，再把 Discourse 和 Bridge 恢复为
+回环监听，最后停用 `gamemulti-origin-firewall.service`；不要先删除防火墙规则后再处理监听。
 
 ## 常见故障
 

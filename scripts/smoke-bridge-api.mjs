@@ -1,10 +1,11 @@
-import { createHash, createHmac, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 
 const appBaseUrl = stripTrailingSlash(process.env.APP_BASE_URL || 'http://127.0.0.1:8080');
 const apiBaseUrl = stripTrailingSlash(process.env.API_BASE_URL || `${appBaseUrl}/api`);
 const forumOrigin = stripTrailingSlash(process.env.FORUM_ORIGIN || 'http://localhost');
 const pluginClientKey = process.env.PLUGIN_CLIENT_KEY || 'demo-client';
 const pluginClientSecret = process.env.PLUGIN_CLIENT_SECRET || 'demo-secret';
+const pluginProtocolVersion = process.env.PLUGIN_PROTOCOL_VERSION || '2026-06-mvp';
 const discourseProviderSecret = process.env.DISCOURSE_PROVIDER_SECRET
   || process.env.FORUM_SSO_SECRET
   || 'local-dev-forum-sso-secret';
@@ -106,11 +107,21 @@ async function main() {
   assert(submitted.ok, `bind submit returned ${submitted.status}: ${submittedHtml.slice(0, 200)}`);
   assert(submittedHtml.includes('绑定完成'), 'bind submit did not render success');
 
+  const statusResponse = await sendPluginRequest(
+    `/api/plugin/bindings/${encodeURIComponent(session.sessionId)}`,
+    undefined,
+    'GET',
+  );
+  const pluginStatus = await parseJson(statusResponse, 'GET /plugin/bindings/:sessionId');
+  assert(pluginStatus.sessionId === session.sessionId, 'plugin status lookup returned a different session');
+  assert(pluginStatus.status === 'bound', `plugin status lookup returned ${pluginStatus.status}, expected bound`);
+
   console.log(JSON.stringify({ ok: true, summary }, null, 2));
 }
 
 async function createPluginBindingSession() {
   const response = await sendPluginRequest('/api/plugin/bindings/session', {
+    requestId: `bridge-bind-${runId}`,
     serverCode: 'cn-mc-01',
     gameCode: 'minecraft',
     platform: 'java',
@@ -121,12 +132,12 @@ async function createPluginBindingSession() {
   return parseJson(response, 'POST /plugin/bindings/session');
 }
 
-async function sendPluginRequest(path, payload) {
-  const body = JSON.stringify(payload);
+async function sendPluginRequest(path, payload, method = 'POST') {
+  const body = payload === undefined ? '' : JSON.stringify(payload);
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const nonce = randomUUID();
+  const nonce = randomBytes(32).toString('hex');
   const signature = signPluginRequest({
-    method: 'POST',
+    method,
     path,
     timestamp,
     nonce,
@@ -134,15 +145,16 @@ async function sendPluginRequest(path, payload) {
   }, pluginClientSecret);
 
   return fetch(`${apiBaseUrl}${path.replace(/^\/api/, '')}`, {
-    method: 'POST',
+    method,
     headers: {
-      'content-type': 'application/json',
+      ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
       'x-gm-client-key': pluginClientKey,
       'x-gm-timestamp': timestamp,
       'x-gm-nonce': nonce,
       'x-gm-signature': signature,
+      'x-gm-protocol-version': pluginProtocolVersion,
     },
-    body,
+    ...(payload === undefined ? {} : { body }),
   });
 }
 

@@ -260,6 +260,8 @@ model BindingSession {
   platform                String
   displayName             String?
   bindMode                String
+  requestId               String
+  requestPayloadHash      String
   token                   String               @unique
   pairCode                String               @unique
   status                  BindingSessionStatus @default(pending)
@@ -293,6 +295,7 @@ model BindingSession {
   @@index([status, expiresAt])
   @@index([gameId, platform, gameUserId])
   @@index([usedByDiscourseUserId, status])
+  @@unique([pluginClientId, requestId])
 }
 
 model UserGameBinding {

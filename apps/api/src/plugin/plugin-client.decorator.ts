@@ -7,6 +7,7 @@ export type AuthenticatedPluginClient = {
   serverCode: string;
   gameId: string;
   gameCode: string;
+  protocolVersion: string;
 };
 
 export const PluginClient = createParamDecorator(

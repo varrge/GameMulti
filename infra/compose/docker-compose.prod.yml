@@ -1,0 +1,11 @@
+services:
+  api:
+    command: >-
+      sh -lc "npm install --include=dev && npx prisma generate && npm run prisma:deploy && npm run build && exec npm run start:prod"
+    restart: unless-stopped
+
+  nginx:
+    restart: unless-stopped
+
+  postgres:
+    restart: unless-stopped

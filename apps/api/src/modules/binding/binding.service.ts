@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { PLUGIN_ERROR_CODES, PluginApiError } from '../../plugin/plugin-api-error';
 import { ConfigService } from '@nestjs/config';
 import { BindingSessionStatus, ForumAccountSyncStatus, Prisma, UserGameBindingStatus } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
@@ -43,6 +44,7 @@ export class BindingService {
   async createSession(
     pluginClient: AuthenticatedPluginClient,
     params: {
+      requestId: string;
       serverCode: string;
       gameCode: string;
       platform: string;
@@ -55,41 +57,59 @@ export class BindingService {
       throw new BadRequestException('Plugin server or game mismatch');
     }
 
+    const requestId = params.requestId.trim();
+    const requestPayloadHash = this.hashBindingRequest(params);
+    const existing = await this.prisma.bindingSession.findUnique({
+      where: { pluginClientId_requestId: { pluginClientId: pluginClient.id, requestId } },
+      include: bindingSessionInclude,
+    });
+    if (existing) {
+      return this.idempotentSessionResponse(existing, requestPayloadHash);
+    }
+
     const expiresAt = new Date(Date.now() + BINDING_SESSION_TTL_SECONDS * 1000);
     const token = await this.createUniqueToken();
     const pairCode = await this.createUniquePairCode();
 
-    const session = await this.prisma.bindingSession.create({
-      data: {
-        gameId: pluginClient.gameId,
-        serverId: pluginClient.serverId,
-        pluginClientId: pluginClient.id,
-        gameUserId: params.gameUserId,
-        platform: params.platform,
-        displayName: params.displayName,
-        bindMode: params.bindMode,
-        token,
-        pairCode,
-        expiresAt,
-        gameAccountSnapshot: {
-          gameCode: params.gameCode,
-          serverCode: params.serverCode,
-          platform: params.platform,
+    try {
+      const session = await this.prisma.bindingSession.create({
+        data: {
+          gameId: pluginClient.gameId,
+          serverId: pluginClient.serverId,
+          pluginClientId: pluginClient.id,
           gameUserId: params.gameUserId,
+          platform: params.platform,
           displayName: params.displayName,
+          bindMode: params.bindMode,
+          requestId,
+          requestPayloadHash,
+          token,
+          pairCode,
+          expiresAt,
+          gameAccountSnapshot: {
+            gameCode: params.gameCode,
+            serverCode: params.serverCode,
+            platform: params.platform,
+            gameUserId: params.gameUserId,
+            displayName: params.displayName,
+          },
         },
-      },
-      include: bindingSessionInclude,
-    });
-
-    return {
-      sessionId: session.id,
-      token: session.token,
-      pairCode: session.pairCode,
-      expiresIn: BINDING_SESSION_TTL_SECONDS,
-      bindUrl: `/bind/confirm?token=${session.token}`,
-      publicBindUrl: this.publicBindUrl(session.token),
-    };
+        include: bindingSessionInclude,
+      });
+      return this.sessionCreatedResponse(session);
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+        throw error;
+      }
+      const concurrent = await this.prisma.bindingSession.findUnique({
+        where: { pluginClientId_requestId: { pluginClientId: pluginClient.id, requestId } },
+        include: bindingSessionInclude,
+      });
+      if (!concurrent) {
+        throw error;
+      }
+      return this.idempotentSessionResponse(concurrent, requestPayloadHash);
+    }
   }
 
   async beginDiscourseAuthentication(token: string) {
@@ -220,6 +240,15 @@ export class BindingService {
       token: result.token,
       serverId: result.serverId,
     };
+  }
+
+  async findForPlugin(pluginClient: AuthenticatedPluginClient, sessionId: string) {
+    const session = await this.prisma.bindingSession.findFirst({
+      where: { id: sessionId, serverId: pluginClient.serverId, pluginClientId: pluginClient.id },
+      include: bindingSessionInclude,
+    });
+    const { id, ...result } = await this.presentSession(session);
+    return { sessionId: id, ...result };
   }
 
   async findByToken(token: string) {
@@ -417,6 +446,49 @@ export class BindingService {
       include: bindingResultInclude,
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  private sessionCreatedResponse(session: { id: string; token: string; pairCode: string; expiresAt: Date }) {
+    return {
+      sessionId: session.id,
+      token: session.token,
+      pairCode: session.pairCode,
+      expiresIn: Math.max(0, Math.ceil((session.expiresAt.getTime() - Date.now()) / 1000)),
+      bindUrl: `/bind/confirm?token=${session.token}`,
+      publicBindUrl: this.publicBindUrl(session.token),
+    };
+  }
+
+  private idempotentSessionResponse(
+    session: { requestPayloadHash: string; id: string; token: string; pairCode: string; expiresAt: Date },
+    requestPayloadHash: string,
+  ) {
+    if (session.requestPayloadHash !== requestPayloadHash) {
+      throw new PluginApiError(
+        409,
+        PLUGIN_ERROR_CODES.idempotencyConflict,
+        'requestId was already used with a different binding request',
+      );
+    }
+    return this.sessionCreatedResponse(session);
+  }
+
+  private hashBindingRequest(params: {
+    serverCode: string;
+    gameCode: string;
+    platform: string;
+    gameUserId: string;
+    displayName?: string;
+    bindMode: string;
+  }) {
+    return createHash('sha256').update(JSON.stringify({
+      serverCode: params.serverCode,
+      gameCode: params.gameCode,
+      platform: params.platform,
+      gameUserId: params.gameUserId,
+      displayName: params.displayName || null,
+      bindMode: params.bindMode,
+    })).digest('hex');
   }
 
   private async presentSession(

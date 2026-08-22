@@ -1,10 +1,11 @@
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NestFactory } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { PluginApiExceptionFilter } from './plugin/plugin-api-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 3401);
   const appUrl = config.get<string>('APP_URL', 'http://localhost:3301');
@@ -20,6 +21,7 @@ async function bootstrap() {
     origin: appUrl,
     credentials: true,
   });
+  app.useGlobalFilters(new PluginApiExceptionFilter(app.get(HttpAdapterHost).httpAdapter));
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,

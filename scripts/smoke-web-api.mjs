@@ -1,10 +1,11 @@
-import { createHash, createHmac, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 
 const appBaseUrl = stripTrailingSlash(process.env.APP_BASE_URL || 'http://127.0.0.1:8080');
 const apiBaseUrl = stripTrailingSlash(process.env.API_BASE_URL || `${appBaseUrl}/api`);
 
 const pluginClientKey = process.env.PLUGIN_CLIENT_KEY || 'demo-client';
 const pluginClientSecret = process.env.PLUGIN_CLIENT_SECRET || 'demo-secret';
+const pluginProtocolVersion = process.env.PLUGIN_PROTOCOL_VERSION || '2026-06-mvp';
 const adminApiKey = process.env.ADMIN_API_KEY || 'local-dev-admin-key';
 const forumSsoSecret = process.env.FORUM_SSO_SECRET || 'local-dev-forum-sso-secret';
 
@@ -117,7 +118,9 @@ async function assertPluginReplayRejected() {
   await parseJsonResponse(firstResponse, 'POST /plugin/bindings/session replay setup');
 
   const replayResponse = await fetch(request.url, request.init);
-  assert(replayResponse.status === 401, `replayed plugin request returned ${replayResponse.status}, expected 401`);
+  const replayBody = await replayResponse.json();
+  assert(replayResponse.status === 409, `replayed plugin request returned ${replayResponse.status}, expected 409`);
+  assert(replayBody.code === 'NONCE_REPLAY', `replayed plugin request returned ${replayBody.code}`);
 }
 
 async function assertPluginTelemetryAccepted() {
@@ -206,7 +209,7 @@ async function sendPluginBindingSessionRequest(params) {
 function sendPluginRequest(path, payload) {
   const body = JSON.stringify(payload);
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const nonce = randomUUID();
+  const nonce = randomBytes(32).toString('hex');
   const signature = signPluginRequest({
     method: 'POST',
     path,
@@ -223,6 +226,7 @@ function sendPluginRequest(path, payload) {
       'x-gm-timestamp': timestamp,
       'x-gm-nonce': nonce,
       'x-gm-signature': signature,
+      'x-gm-protocol-version': pluginProtocolVersion,
     },
     body,
   });
@@ -230,6 +234,7 @@ function sendPluginRequest(path, payload) {
 
 function buildPluginBindingSessionRequest(params) {
   const body = JSON.stringify({
+    requestId: `smoke-bind-${runId}-${params.gameUserId}`,
     serverCode: 'cn-mc-01',
     gameCode: 'minecraft',
     platform: 'java',
@@ -240,7 +245,7 @@ function buildPluginBindingSessionRequest(params) {
 
   const path = '/api/plugin/bindings/session';
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const nonce = randomUUID();
+  const nonce = randomBytes(32).toString('hex');
   const signature = signPluginRequest({
     method: 'POST',
     path,
@@ -259,6 +264,7 @@ function buildPluginBindingSessionRequest(params) {
         'x-gm-timestamp': timestamp,
         'x-gm-nonce': nonce,
         'x-gm-signature': signature,
+        'x-gm-protocol-version': pluginProtocolVersion,
       },
       body,
     },

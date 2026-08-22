@@ -5,10 +5,10 @@ export type PluginSignatureInput = {
   path: string;
   timestamp: string;
   nonce: string;
-  body: string;
+  body: string | Buffer;
 };
 
-export function hashRequestBody(body: string) {
+export function hashRequestBody(body: string | Buffer) {
   return createHash('sha256').update(body || '').digest('hex');
 }
 

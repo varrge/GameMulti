@@ -77,7 +77,8 @@ if ! docker ps --format '{{.Names}}' | grep -Fxq "$DISCOURSE_CONTAINER"; then
   fail "Discourse container is not running: $DISCOURSE_CONTAINER"
 fi
 
-docker exec \
+docker exec -i \
+  -u discourse \
   -e GM_FORUM_SSO_SECRET="$FORUM_SSO_SECRET" \
   -e GM_DISCOURSE_PROVIDER_SECRET="$DISCOURSE_PROVIDER_SECRET" \
   -e GM_GAME_PUBLIC_ORIGIN="$GAME_PUBLIC_ORIGIN" \
@@ -170,7 +171,8 @@ RUBY
 
 LINKS_SCRIPT="$SCRIPT_DIR/discourse_apply_game_links.rb"
 if [[ -f "$LINKS_SCRIPT" ]]; then
-  docker exec \
+  docker exec -i \
+    -u discourse \
     -e GM_BRIDGE_PUBLIC_ORIGIN="$BRIDGE_PUBLIC_ORIGIN" \
     -e GM_FORUM_CATEGORY_NAME="${GAMEMULTI_FORUM_CATEGORY_NAME:-游戏绑定}" \
     -e GM_FORUM_TOPIC_TITLE="${GAMEMULTI_FORUM_TOPIC_TITLE:-游戏绑定与服务器接入}" \

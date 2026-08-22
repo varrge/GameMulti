@@ -21,10 +21,81 @@ bash infra/deploy/update.sh
 
 ## 前置条件
 
-- 已安装 `docker` 与 `docker compose`
+- 已安装 Docker Engine 与 Compose V2，命令必须是 `docker compose`，不是旧版
+  `docker-compose`
 - 已在 `infra/compose/.env` 中回填最少变量
 - 默认不部署 Next 前端；只有设置 `ENABLE_WEB=1` 或 `COMPOSE_PROFILES=web`
   时，才需要确认 `WEB_SOURCE_DIR` 指向真实仓库内前端目录
+
+## Docker 安装要求
+
+生产服务器优先使用 Ubuntu LTS。Docker 官方当前支持 Ubuntu 22.04 LTS、24.04 LTS、
+26.04 LTS 等 64 位系统，架构支持 `amd64` / `arm64` 等。不要用发行版自带的旧
+`docker.io` 和旧 `docker-compose` 包混装。
+
+Ubuntu 推荐安装方式：
+
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
+```
+
+安装后验证：
+
+```bash
+sudo docker run --rm hello-world
+docker compose version || sudo docker compose version
+```
+
+如果部署用户需要不带 `sudo` 执行 Docker：
+
+```bash
+sudo usermod -aG docker "$USER"
+newgrp docker
+```
+
+注意：`docker` 用户组等同于给该用户宿主机 root 级能力，只给可信部署用户。Docker
+发布端口可能绕过 `ufw` / `firewalld` 的普通规则；公网只开放业务需要的 `80/tcp`、
+`443/tcp`，不要开放 Docker daemon 端口，也不要开放在线更新代理 `3421/tcp`。
+如果使用 VPS/1Panel 反代家庭服务器的 `1050/1051`，必须通过
+`infra/deploy/gamemulti-origin-firewall.sh` 的 `DOCKER-USER` 规则只允许 VPS 固定 IP。
+
+上线前确认服务器能拉取这些镜像：
+
+- `node:22-alpine`
+- `postgres:16-alpine`
+- `nginx:1.27-alpine`
+- 可选：`redis:7-alpine`
+
+如果云服务器访问 Docker Hub 不稳定，先配置云厂商镜像加速、私有镜像仓库，或提前把上述
+镜像同步到可访问的 registry；否则部署会卡在 `docker compose pull/up`。
+
+## 服务器规格建议
+
+当前默认只部署 GameMulti Bridge：`api`、`postgres`、`nginx` 和宿主机在线更新代理；
+不默认部署旧 Next 前端、Redis 队列或 Discourse。
+
+| 场景 | 可运行最低配置 | 建议上线配置 |
+| --- | --- | --- |
+| 只跑 GameMulti Bridge | 1 vCPU / 1 GB RAM / 20 GB SSD，配 1-2 GB swap | 2 vCPU / 2 GB RAM / 40 GB SSD |
+| GameMulti Bridge + Discourse 同机 | 2 vCPU / 4 GB RAM / 60 GB SSD，配 2 GB swap | 4 vCPU / 8 GB RAM / 80 GB SSD |
+
+生产更推荐 GameMulti Bridge 与 Discourse 分开部署。Minecraft 游戏服不计入这份配置；
+如果也放同一台机器，需要按游戏服在线人数额外加内存。
 
 ## 最少必填变量
 
@@ -36,6 +107,16 @@ NODE_ENV=development
 PUBLIC_ORIGIN=http://localhost:8080
 FORUM_ORIGIN=https://bbs.example.com
 HOST_HTTP_PORT=8080
+```
+
+家庭服务器通过 VPS/1Panel 发布 Bridge 时，改为：
+
+```env
+PUBLIC_ORIGIN=https://sso.game-mp.cn
+FORUM_ORIGIN=https://bbs.game-mp.cn
+HOST_HTTP_PORT=192.168.110.243:1051
+DEPLOY_HEALTH_URL=http://192.168.110.243:1051/api/healthz
+NGINX_CONF=../nginx/onepanel-origin.conf
 ```
 
 如需临时启用旧 Next 前端，再补：
@@ -89,11 +170,32 @@ DEPLOY_UPDATE_MODE=ff-only
 DEPLOY_HEALTH_URL=http://127.0.0.1:8080/api/healthz
 DEPLOY_HEALTH_ATTEMPTS=30
 DEPLOY_HEALTH_DELAY_SECONDS=3
+DEPLOY_AGENT_URL=http://host.docker.internal:3421
+DEPLOY_AGENT_TOKEN=replace-with-a-long-random-deploy-agent-token
+DEPLOY_AGENT_PORT=3421
 ```
 
 如果服务器确认只作为部署目录、不会保留本地代码改动，可以把
 `DEPLOY_UPDATE_MODE=reset`，脚本会强制对齐到远端分支。生产首次建议保持
 `ff-only`。
+
+论坛入口帖会链接到 `/api/admin/plugin-client-generator`。这个页面里有“一键更新”
+按钮；点击后会调用 API，再由 API 调用宿主机更新代理执行 `infra/deploy/update.sh`。
+
+启用按钮前，在服务器上安装更新代理：
+
+```bash
+cd /path/to/GameMulti
+bash infra/deploy/up.sh
+sudo cp infra/deploy/gamemulti-update-agent.service.example /etc/systemd/system/gamemulti-update-agent.service
+sudo sed -i 's#/opt/GameMulti#/path/to/GameMulti#g' /etc/systemd/system/gamemulti-update-agent.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now gamemulti-update-agent
+curl -fsS http://127.0.0.1:3421/healthz
+```
+
+不要在云安全组或公网防火墙开放 `3421/tcp`。这个端口只给本机 Docker 网络访问，
+真正的外部入口仍是受 `ADMIN_API_KEY` 保护的 GameMulti 管理页。
 
 ## 变量派生规则
 
@@ -117,6 +219,7 @@ DEPLOY_HEALTH_DELAY_SECONDS=3
 APP_SECRET=...
 ADMIN_API_KEY=...
 FORUM_SSO_SECRET=...
+DEPLOY_AGENT_TOKEN=...
 POSTGRES_PASSWORD=...
 ```
 

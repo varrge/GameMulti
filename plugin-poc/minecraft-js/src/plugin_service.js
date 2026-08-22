@@ -7,6 +7,7 @@ class MinecraftPluginPoCService {
     serverCode = 'cn-mc-01',
     pluginClientKey = 'demo-client',
     pluginClientSecret = 'demo-secret',
+    protocolVersion = '2026-06-mvp',
     publicHost = null,
     publicPort = 25565,
     now = () => new Date(),
@@ -18,6 +19,7 @@ class MinecraftPluginPoCService {
     this.serverCode = serverCode;
     this.pluginClientKey = pluginClientKey;
     this.pluginClientSecret = pluginClientSecret;
+    this.protocolVersion = protocolVersion;
     this.publicHost = publicHost;
     this.publicPort = publicPort;
     this.now = now;
@@ -36,7 +38,7 @@ class MinecraftPluginPoCService {
     publicHost = this.publicHost,
     publicPort = this.publicPort,
     pluginVersion = 'temporary',
-    protocolVersion = '2026-06-mvp',
+    protocolVersion = this.protocolVersion,
     region,
   }) {
     if (!this.fetchImpl) {
@@ -72,6 +74,7 @@ class MinecraftPluginPoCService {
     this.serverCode = data.server.serverCode;
     this.pluginClientKey = data.pluginClient.clientKey;
     this.pluginClientSecret = data.pluginClient.clientSecret;
+    this.protocolVersion = protocolVersion;
     this.publicHost = publicHost;
     this.publicPort = publicPort;
 
@@ -105,6 +108,7 @@ class MinecraftPluginPoCService {
       command: `/gm bind ${displayName}`,
       endpoint: `${this.apiBaseUrl}/api/plugin/bindings/session`,
       payload: {
+        requestId: this.id('bind'),
         pluginClientKey: this.pluginClientKey,
         serverCode: this.serverCode,
         gameCode,
@@ -124,7 +128,14 @@ class MinecraftPluginPoCService {
     };
   }
 
-  async requestBindingSession({ gameCode = 'minecraft', platform = 'java', playerUuid, displayName, bindMode = 'bind_existing' }) {
+  async requestBindingSession({
+    requestId = this.id('bind'),
+    gameCode = 'minecraft',
+    platform = 'java',
+    playerUuid,
+    displayName,
+    bindMode = 'bind_existing',
+  }) {
     if (!this.fetchImpl) {
       throw this.businessError('FETCH_UNAVAILABLE', 'fetch implementation is required');
     }
@@ -133,6 +144,7 @@ class MinecraftPluginPoCService {
     }
 
     const payload = {
+      requestId,
       serverCode: this.serverCode,
       gameCode,
       platform,
@@ -168,6 +180,33 @@ class MinecraftPluginPoCService {
       response: data,
       playerMessage: `绑定码 ${data.pairCode}，或打开 ${this.resolveBindUrl(data)}`,
     };
+  }
+
+  async getBindingSession(sessionId) {
+    if (!this.fetchImpl) {
+      throw this.businessError('FETCH_UNAVAILABLE', 'fetch implementation is required');
+    }
+    if (!sessionId) {
+      throw this.businessError('INVALID_ARGUMENT', 'sessionId is required');
+    }
+
+    const request = this.buildSignedRequest({
+      method: 'GET',
+      path: `/api/plugin/bindings/${encodeURIComponent(sessionId)}`,
+    });
+    const response = await this.fetchImpl(`${this.apiBaseUrl}${request.path}`, {
+      method: request.method,
+      headers: request.headers,
+    });
+    const data = await this.parseJsonResponse(response);
+    if (!response.ok) {
+      const message = data?.message || `Binding session lookup failed with HTTP ${response.status}`;
+      const error = this.businessError('BINDING_SESSION_LOOKUP_FAILED', message);
+      error.status = response.status;
+      error.response = data;
+      throw error;
+    }
+    return data;
   }
 
   resolveBindUrl(response) {
@@ -224,9 +263,9 @@ class MinecraftPluginPoCService {
   }
 
   buildSignedRequest({ method, path, body }) {
-    const serializedBody = JSON.stringify(body || {});
+    const serializedBody = body === undefined ? '' : JSON.stringify(body);
     const timestamp = Math.floor(this.now().getTime() / 1000).toString();
-    const nonce = this.randomToken(16);
+    const nonce = this.randomToken(32);
     const signature = this.signPluginRequest({
       method,
       path,
@@ -238,13 +277,14 @@ class MinecraftPluginPoCService {
     return {
       method: method.toUpperCase(),
       path,
-      body: serializedBody,
+      body: body === undefined ? undefined : serializedBody,
       headers: {
-        'content-type': 'application/json',
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
         'x-gm-client-key': this.pluginClientKey,
         'x-gm-timestamp': timestamp,
         'x-gm-nonce': nonce,
         'x-gm-signature': signature,
+        'x-gm-protocol-version': this.protocolVersion,
       },
     };
   }

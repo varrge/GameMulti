@@ -6,6 +6,7 @@ async function main() {
     serverCode: process.env.GM_SERVER_CODE || 'cn-mc-01',
     pluginClientKey: process.env.GM_PLUGIN_CLIENT_KEY || 'demo-client',
     pluginClientSecret: process.env.GM_PLUGIN_CLIENT_SECRET || 'demo-secret',
+    protocolVersion: process.env.GM_PROTOCOL_VERSION || '2026-06-mvp',
   });
 
   const result = await plugin.requestBindingSession({

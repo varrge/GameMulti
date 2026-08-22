@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "build:api": "npm --workspace apps/api run build",
+    "check:api-prod-build": "npm run build:api && node -e \"require('node:fs').accessSync('apps/api/dist/main.js')\"",
     "build:web": "npm --workspace apps/web run build",
     "dev:api": "npm --workspace apps/api run start:dev",
     "dev:web": "npm --workspace apps/web run dev",

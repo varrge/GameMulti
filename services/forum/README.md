@@ -9,7 +9,7 @@
 创建一个“游戏绑定”分类和置顶帖，包含：
 
 - 我的游戏绑定：`<BRIDGE_PUBLIC_ORIGIN>/bind/account`
-- 插件安装和服务器审核：`<BRIDGE_PUBLIC_ORIGIN>/api/admin/plugin-client-generator`
+- 插件安装、服务器审核和在线更新：`<BRIDGE_PUBLIC_ORIGIN>/api/admin/plugin-client-generator`
 
 这只是论坛轻集成：论坛负责注册、登录和社区内容；绑定确认、服务器凭证和审核仍由
 GameMulti Bridge 处理。

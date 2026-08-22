@@ -35,6 +35,7 @@ test('binding command returns expected payload and confirmation info', () => {
   assert.equal(result.endpoint, 'https://gamemulti.local/api/plugin/bindings/session');
   assert.equal(result.payload.gameUserId, '550e8400-e29b-41d4-a716-446655440000');
   assert.equal(result.payload.displayName, 'Steve');
+  assert.match(result.payload.requestId, /^bind_/);
   assert.equal(result.response.expiresIn, 300);
   assert.match(result.response.pairCode, /^\d{6}$/);
   assert.match(result.response.bindUrl, /^\/bind\/confirm\?token=/);
@@ -124,15 +125,16 @@ test('signed plugin request matches API signature contract', () => {
     'POST',
     '/api/plugin/bindings/session',
     '1781845200',
-    '01010101010101010101010101010101',
+    '01'.repeat(32),
     bodyHash,
   ].join('\n');
   const expectedSignature = crypto.createHmac('sha256', 'demo-secret').update(expectedPayload).digest('hex');
 
   assert.equal(request.headers['x-gm-client-key'], 'demo-client');
   assert.equal(request.headers['x-gm-timestamp'], '1781845200');
-  assert.equal(request.headers['x-gm-nonce'], '01010101010101010101010101010101');
+  assert.equal(request.headers['x-gm-nonce'], '01'.repeat(32));
   assert.equal(request.headers['x-gm-signature'], expectedSignature);
+  assert.equal(request.headers['x-gm-protocol-version'], '2026-06-mvp');
 });
 
 test('claimInstallation stores issued plugin credentials', async () => {
@@ -213,9 +215,50 @@ test('requestBindingSession posts signed request and returns player message', as
   assert.equal(calls[0].url, 'http://127.0.0.1:8080/api/plugin/bindings/session');
   assert.equal(calls[0].init.method, 'POST');
   assert.equal(JSON.parse(calls[0].init.body).gameUserId, 'player-1');
+  assert.equal(JSON.parse(calls[0].init.body).requestId, 'bind_01010101');
+  assert.equal(calls[0].init.headers['x-gm-protocol-version'], '2026-06-mvp');
   assert.equal(result.response.pairCode, '123456');
   assert.match(result.playerMessage, /123456/);
   assert.match(result.playerMessage, /https:\/\/app\.example\.test\/bind\/confirm\?token=token-1/);
+});
+
+test('getBindingSession signs an empty-body GET and returns the plugin status view', async () => {
+  const calls = [];
+  const plugin = new MinecraftPluginPoCService({
+    apiBaseUrl: 'http://127.0.0.1:8080',
+    pluginClientSecret: 'demo-secret',
+    now: () => new Date('2026-06-19T05:00:00.000Z'),
+    randomBytes: fixedRandomBytes,
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ sessionId: 'session-1', status: 'bound' }),
+      };
+    },
+  });
+
+  const result = await plugin.getBindingSession('session-1');
+  assert.equal(result.status, 'bound');
+  assert.equal(calls[0].url, 'http://127.0.0.1:8080/api/plugin/bindings/session-1');
+  assert.equal(calls[0].init.method, 'GET');
+  assert.equal('body' in calls[0].init, false);
+  assert.equal('content-type' in calls[0].init.headers, false);
+  assert.equal(calls[0].init.headers['x-gm-protocol-version'], '2026-06-mvp');
+
+  const expectedBodyHash = crypto.createHash('sha256').update('').digest('hex');
+  const expectedPayload = [
+    'GET',
+    '/api/plugin/bindings/session-1',
+    '1781845200',
+    '01'.repeat(32),
+    expectedBodyHash,
+  ].join('\n');
+  assert.equal(
+    calls[0].init.headers['x-gm-signature'],
+    crypto.createHmac('sha256', 'demo-secret').update(expectedPayload).digest('hex'),
+  );
 });
 
 test('handleCommand maps /gm bind to live binding request', async () => {

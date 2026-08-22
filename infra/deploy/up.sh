@@ -5,6 +5,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 COMPOSE_DIR="$REPO_ROOT/infra/compose"
 COMPOSE_FILE="$COMPOSE_DIR/docker-compose.yml"
+PROD_COMPOSE_FILE="$COMPOSE_DIR/docker-compose.prod.yml"
 ENV_FILE="$COMPOSE_DIR/.env"
 ENV_EXAMPLE="$COMPOSE_DIR/.env.example"
 
@@ -77,6 +78,16 @@ ensure_generated_secret() {
   fi
 }
 
+ensure_default_env_value() {
+  local name=$1
+  local value=$2
+  local current
+  current=$(env_file_value "$name")
+  if [[ -z "$current" ]]; then
+    set_env_file_value "$name" "$value"
+  fi
+}
+
 sync_default_database_url_password() {
   local db_password=$1
   local current
@@ -90,7 +101,10 @@ GENERATED_SECRETS=()
 ensure_generated_secret APP_SECRET
 ensure_generated_secret ADMIN_API_KEY
 ensure_generated_secret FORUM_SSO_SECRET
+ensure_generated_secret DEPLOY_AGENT_TOKEN
 ensure_generated_secret POSTGRES_PASSWORD
+ensure_default_env_value DEPLOY_AGENT_URL "http://host.docker.internal:3421"
+ensure_default_env_value DEPLOY_AGENT_PORT "3421"
 sync_default_database_url_password "$(env_file_value POSTGRES_PASSWORD)"
 chmod 600 "$ENV_FILE" 2>/dev/null || true
 
@@ -108,6 +122,20 @@ fi
 set -a
 source "$ENV_FILE"
 set +a
+
+COMPOSE_FILES=("$COMPOSE_FILE")
+if [[ "${NODE_ENV:-development}" == "production" ]]; then
+  if [[ ! -f "$PROD_COMPOSE_FILE" ]]; then
+    echo "未找到生产 compose 覆盖文件: $PROD_COMPOSE_FILE" >&2
+    exit 1
+  fi
+  COMPOSE_FILES+=("$PROD_COMPOSE_FILE")
+fi
+
+COMPOSE_ARGS=()
+for compose_file in "${COMPOSE_FILES[@]}"; do
+  COMPOSE_ARGS+=(-f "$compose_file")
+done
 
 PUBLIC_ORIGIN=${PUBLIC_ORIGIN:-${APP_URL:-http://localhost:${HOST_HTTP_PORT:-8080}}}
 APP_URL=${APP_URL:-$PUBLIC_ORIGIN}
@@ -191,13 +219,13 @@ if [[ ",${COMPOSE_PROFILES:-}," == *",web,"* ]]; then
 else
   echo "==> 默认不启动 web 服务；如需旧前端，请设置 ENABLE_WEB=1 或 COMPOSE_PROFILES=web"
 fi
-echo "==> Compose 文件: $COMPOSE_FILE"
+echo "==> Compose 文件: ${COMPOSE_FILES[*]}"
 echo "==> Compose 项目名: $COMPOSE_PROJECT_NAME"
 echo "==> HTTP 入口端口: ${HOST_HTTP_PORT:-8080}"
 echo "==> Nginx 配置: ${NGINX_CONF:-../nginx/default.conf}"
 echo "==> 启动 compose 服务"
 cd "$COMPOSE_DIR"
-docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans
+docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" up -d --remove-orphans
 
 echo "==> 当前服务状态"
-docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
+docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" ps

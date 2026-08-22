@@ -86,9 +86,18 @@ bash infra/deploy/discourse_render_game_env.sh infra/deploy/discourse.env
 
 ## 2. GameMulti 服务器
 
+先按 `docs/deployment/one_click_deploy.md` 的 Docker 安装要求装好 Docker Engine
+和 Compose V2，并确认：
+
+```bash
+docker version
+docker compose version
+```
+
 在 GameMulti 服务器的 `infra/compose/.env` 或生产 secret 平台中写入：
 
 ```env
+NODE_ENV=production
 FORUM_PROVIDER=discourse
 FORUM_ORIGIN=https://forum.example.com
 FORUM_ENTRY_PATH=/
@@ -97,8 +106,16 @@ FORUM_SSO_SECRET=replace-with-the-same-secret-as-discourse
 NEXT_PUBLIC_FORUM_ENTRY_PATH=/
 ```
 
+如果公网 HTTPS 和域名反代由 VPS 1Panel 负责，而 Bridge 位于家庭服务器，再设置：
+
+```env
+HOST_HTTP_PORT=192.168.110.243:1051
+DEPLOY_HEALTH_URL=http://192.168.110.243:1051/api/healthz
+NGINX_CONF=../nginx/onepanel-origin.conf
+```
+
 如果使用 `infra/deploy/up.sh`，服务器 `infra/compose/.env` 里只需要写
-`PUBLIC_ORIGIN`、`FORUM_ORIGIN` 和 `FORUM_SSO_SECRET`；脚本会派生
+`NODE_ENV=production`、`PUBLIC_ORIGIN`、`FORUM_ORIGIN` 和 `FORUM_SSO_SECRET`；脚本会派生
 `BRIDGE_PUBLIC_ORIGIN`、`DISCOURSE_PROVIDER_SECRET` 和 `NEXT_PUBLIC_FORUM_ORIGIN`。
 
 如果 `FORUM_SSO_SECRET` 仍是占位值，`up.sh` 会在第一次部署时随机生成并显示一次。
@@ -117,7 +134,36 @@ curl -fsS https://app.example.com/api/healthz
 
 ## 3. Discourse 服务器
 
-确认 DNS 已指向论坛服务器，且安全组/防火墙开放 `80/tcp` 和 `443/tcp`。
+直接由论坛服务器提供 HTTPS 时，确认 DNS 已指向论坛服务器，且安全组/防火墙开放
+`80/tcp` 和 `443/tcp`。由 VPS 1Panel 提供 HTTPS 时，论坛源站改为直接发布
+`1050/tcp`，并且只允许 1Panel VPS 固定 IP 访问。
+
+家庭服务器上的 `app.yml` 使用：
+
+```yaml
+expose:
+  - "192.168.110.243:1050:80"
+```
+
+安装持久来源限制：
+
+```bash
+sudo cp infra/deploy/gamemulti-origin-firewall.service.example \
+  /etc/systemd/system/gamemulti-origin-firewall.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now gamemulti-origin-firewall.service
+```
+
+1Panel 配置：
+
+```text
+bbs.game-mp.cn -> http://game.game-mp.cn:1050
+sso.game-mp.cn -> http://game.game-mp.cn:1051
+```
+
+两个代理都必须传递 `Host`、`X-Forwarded-Proto`、`X-Forwarded-Host`、
+`X-Forwarded-For` 和 `X-Real-IP`。边缘层用当前连接的 `$remote_addr` 重建客户端 IP，
+不要信任浏览器自带的转发头。证书只放在 1Panel，家庭服务器不再运行 Caddy。
 
 按官方方式安装 Discourse：
 
@@ -157,7 +203,7 @@ bash infra/deploy/discourse_configure_sso.sh infra/deploy/discourse.env
 “游戏绑定”分类和置顶入口帖，默认包含：
 
 - 我的游戏绑定：`https://app.example.com/bind/account`
-- 插件安装和服务器审核：`https://app.example.com/api/admin/plugin-client-generator`
+- 插件安装、服务器审核和在线更新：`https://app.example.com/api/admin/plugin-client-generator`
 
 如果脚本提示容器不存在：
 
@@ -182,6 +228,8 @@ curl -I https://forum.example.com/
 curl -I https://app.example.com/
 curl -fsS https://app.example.com/api/healthz
 ```
+
+同时确认：VPS 能访问 `1050/1051`，普通公网客户端不能绕过 1Panel 直接访问这两个端口。
 
 GameMulti Bridge smoke：
 
@@ -222,6 +270,9 @@ Discourse 配置错误优先回滚后台设置：
 - 保留 Discourse 容器和数据库，不要直接删卷。
 
 如果 Discourse 安装或升级失败，优先用 Discourse 后台备份恢复。
+
+如果 1Panel 直连回源切换失败，先恢复原入口代理与回环端口，再停用来源限制服务；
+不要在源站端口向全网开放的状态下继续排障。
 
 ## 7. 常见阻塞
 

@@ -1,0 +1,17 @@
+[Unit]
+Description=Restrict GameMulti origin ports to the 1Panel reverse proxy
+Requires=docker.service
+After=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=INGRESS_PROXY_IP=64.90.1.22
+Environment=INGRESS_ORIGIN_IP=192.168.110.243
+Environment=INGRESS_PORTS=1050,1051
+ExecStart=/opt/gamemulti/current/infra/deploy/gamemulti-origin-firewall.sh apply
+ExecStop=/opt/gamemulti/current/infra/deploy/gamemulti-origin-firewall.sh remove
+
+[Install]
+WantedBy=multi-user.target

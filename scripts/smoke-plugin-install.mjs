@@ -6,6 +6,7 @@ loadLocalEnv();
 const appBaseUrl = stripTrailingSlash(process.env.APP_BASE_URL || 'http://127.0.0.1:8080');
 const apiBaseUrl = stripTrailingSlash(process.env.API_BASE_URL || `${appBaseUrl}/api`);
 const adminApiKey = process.env.ADMIN_API_KEY;
+const pluginProtocolVersion = process.env.PLUGIN_PROTOCOL_VERSION || '2026-06-mvp';
 
 const runId = Date.now().toString(36);
 const serverCode = `install-smoke-${runId}`;
@@ -30,12 +31,14 @@ async function main() {
     publicHost: 'mc-smoke.example.test',
     publicPort: 25565,
     pluginVersion: 'smoke',
-    protocolVersion: '2026-06-mvp',
+    protocolVersion: pluginProtocolVersion,
   });
   assert(claim.server.status === 'pending', `expected pending server, got ${claim.server.status}`);
 
   const pendingHeartbeat = await postPlugin('/game-servers/heartbeat', heartbeatPayload(), claim);
-  assert(pendingHeartbeat.status === 401, `pending heartbeat returned ${pendingHeartbeat.status}, expected 401`);
+  const pendingBody = await readJson(pendingHeartbeat);
+  assert(pendingHeartbeat.status === 403, `pending heartbeat returned ${pendingHeartbeat.status}, expected 403`);
+  assert(pendingBody.code === 'SERVER_PENDING_APPROVAL', `pending heartbeat returned ${pendingBody.code}`);
 
   const servers = await getAdmin('/admin/game-servers');
   const server = servers.find((item) => item.serverCode === serverCode);
@@ -50,7 +53,9 @@ async function main() {
   await postAdmin(`/admin/game-servers/${encodeURIComponent(server.id)}/status`, { status: 'blocked' });
 
   const blockedHeartbeat = await postPlugin('/game-servers/heartbeat', heartbeatPayload(), claim);
-  assert(blockedHeartbeat.status === 401, `blocked heartbeat returned ${blockedHeartbeat.status}, expected 401`);
+  const blockedBody = await readJson(blockedHeartbeat);
+  assert(blockedHeartbeat.status === 403, `blocked heartbeat returned ${blockedHeartbeat.status}, expected 403`);
+  assert(blockedBody.code === 'SERVER_BLOCKED', `blocked heartbeat returned ${blockedBody.code}`);
 
   console.log(JSON.stringify({
     ok: true,
@@ -107,7 +112,7 @@ async function postPlugin(path, body, claim) {
   const apiPath = `/api${path}`;
   const serialized = JSON.stringify(body);
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const nonce = randomBytes(16).toString('hex');
+  const nonce = randomBytes(32).toString('hex');
 
   return fetch(`${apiBaseUrl}${path}`, {
     method: 'POST',
@@ -116,6 +121,7 @@ async function postPlugin(path, body, claim) {
       'x-gm-client-key': claim.pluginClient.clientKey,
       'x-gm-timestamp': timestamp,
       'x-gm-nonce': nonce,
+      'x-gm-protocol-version': pluginProtocolVersion,
       'x-gm-signature': signPluginRequest({
         method: 'POST',
         path: apiPath,
@@ -129,16 +135,23 @@ async function postPlugin(path, body, claim) {
 }
 
 async function parseJson(response, label) {
-  const text = await response.text();
-  let body = null;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    body = text;
-  }
+  const { body, text } = await readJsonResponse(response);
 
   assert(response.ok, `${label} returned ${response.status}: ${text}`);
   return body;
+}
+
+async function readJson(response) {
+  return (await readJsonResponse(response)).body;
+}
+
+async function readJsonResponse(response) {
+  const text = await response.text();
+  try {
+    return { body: text ? JSON.parse(text) : null, text };
+  } catch {
+    return { body: text, text };
+  }
 }
 
 function signPluginRequest(input, secret) {

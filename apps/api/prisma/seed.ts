@@ -6,6 +6,10 @@ const appSecret = process.env.APP_SECRET || 'replace-with-a-long-random-secret';
 const demoPluginSecret = 'demo-secret';
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Prisma seed is disabled when NODE_ENV=production');
+  }
+
   const game = await prisma.game.upsert({
     where: { code: 'minecraft' },
     update: {},
