@@ -138,11 +138,17 @@ for compose_file in "${COMPOSE_FILES[@]}"; do
 done
 
 if [[ "${NODE_ENV:-development}" == "production" ]]; then
+  if ! git -C "$REPO_ROOT" rev-parse --verify HEAD >/dev/null 2>&1; then
+    echo "生产镜像必须从 Git 提交构建。" >&2
+    exit 1
+  fi
+  if [[ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]]; then
+    echo "检测到未提交文件，拒绝构建生产镜像：" >&2
+    git -C "$REPO_ROOT" status --short >&2
+    exit 1
+  fi
   if [[ -z "${API_IMAGE_TAG:-}" ]]; then
-    API_IMAGE_TAG=$(git -C "$REPO_ROOT" rev-parse --short=12 HEAD 2>/dev/null || date -u +%Y%m%d%H%M%S)
-    if [[ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=no 2>/dev/null)" ]]; then
-      API_IMAGE_TAG="${API_IMAGE_TAG}-dirty-$(date -u +%Y%m%d%H%M%S)"
-    fi
+    API_IMAGE_TAG=$(git -C "$REPO_ROOT" rev-parse --short=12 HEAD)
   fi
   export API_IMAGE_TAG
 fi
@@ -212,18 +218,6 @@ fi
 COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-${APP_NAME:-gamemulti}}
 export COMPOSE_PROJECT_NAME
 
-existing_web=$(docker ps -aq --filter "name=^/${APP_NAME:-gamemulti}-web$")
-if [[ -n "$existing_web" ]]; then
-  existing_project=$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "$existing_web" 2>/dev/null || true)
-  existing_config=$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project.config_files" }}' "$existing_web" 2>/dev/null || true)
-  if [[ "$existing_project" != "$COMPOSE_PROJECT_NAME" || "$existing_config" != "$COMPOSE_FILE" ]]; then
-    echo "检测到旧链路残留容器 ${APP_NAME:-gamemulti}-web，来自其他工作区：${existing_config:-unknown}" >&2
-    echo "将尝试清理旧的 gamemulti compose 资源，避免容器名冲突。" >&2
-    docker rm -f "${APP_NAME:-gamemulti}-nginx" "${APP_NAME:-gamemulti}-web" >/dev/null 2>&1 || true
-    docker network rm "${APP_NAME:-gamemulti}_app_net" >/dev/null 2>&1 || true
-  fi
-fi
-
 if [[ ",${COMPOSE_PROFILES:-}," == *",web,"* ]]; then
   echo "==> 使用前端源码目录: $WEB_SOURCE_DIR"
 else
@@ -234,16 +228,43 @@ echo "==> Compose 项目名: $COMPOSE_PROJECT_NAME"
 echo "==> HTTP 入口端口: ${HOST_HTTP_PORT:-8080}"
 echo "==> Nginx 配置: ${NGINX_CONF:-../nginx/default.conf}"
 if [[ "${NODE_ENV:-development}" == "production" ]]; then
-  echo "==> 构建 API 镜像: ${APP_NAME:-gamemulti}-api:${API_IMAGE_TAG}"
-  docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" build api migrate
+  api_image="${APP_NAME:-gamemulti}-api:${API_IMAGE_TAG}"
+  migration_image="${APP_NAME:-gamemulti}-api-migration:${API_IMAGE_TAG}"
+  if docker image inspect "$api_image" >/dev/null 2>&1 && docker image inspect "$migration_image" >/dev/null 2>&1; then
+    echo "==> 复用已有 API 镜像: $api_image"
+  elif docker image inspect "$api_image" >/dev/null 2>&1 || docker image inspect "$migration_image" >/dev/null 2>&1; then
+    echo "检测到不完整的生产镜像组，拒绝覆盖 Git SHA 标签: ${API_IMAGE_TAG}" >&2
+    exit 1
+  else
+    echo "==> 构建 API 镜像: $api_image"
+    docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" build api migrate
+  fi
   echo "==> 启动并等待 PostgreSQL"
   docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" up -d --wait postgres
   echo "==> 执行 Prisma 生产迁移"
   docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" run --rm migrate
 fi
+
+existing_web=$(docker ps -aq --filter "name=^/${APP_NAME:-gamemulti}-web$")
+if [[ -n "$existing_web" ]]; then
+  existing_project=$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "$existing_web" 2>/dev/null || true)
+  if [[ "$existing_project" != "$COMPOSE_PROJECT_NAME" ]]; then
+    echo "检测到其他 Compose 项目的同名旧容器，将在发布切换时清理。" >&2
+    docker rm -f "${APP_NAME:-gamemulti}-nginx" "${APP_NAME:-gamemulti}-web" >/dev/null 2>&1 || true
+    docker network rm "${APP_NAME:-gamemulti}_app_net" >/dev/null 2>&1 || true
+  fi
+fi
+
 echo "==> 启动 compose 服务"
 cd "$COMPOSE_DIR"
-docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" up -d --remove-orphans
+if [[ "${NODE_ENV:-development}" == "production" ]]; then
+  docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" up -d --remove-orphans --wait
+  echo "==> 重建 Nginx 并验证 API 代理"
+  docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" up -d --force-recreate --no-deps --wait nginx
+  docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" exec -T nginx wget -q -O /dev/null http://127.0.0.1/api/healthz
+else
+  docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" up -d --remove-orphans
+fi
 
 echo "==> 当前服务状态"
 docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" ps

@@ -132,12 +132,12 @@ NGINX_CONF=../nginx/with-web.conf
 
 - 使用 `infra/compose/docker-compose.yml`
 - 默认以 `APP_NAME` 作为 compose project 名（默认 `gamemulti`）
-- `NODE_ENV=production` 时先构建 Git SHA 标记的 API 与 migration 镜像，运行容器不挂载源码
+- `NODE_ENV=production` 时只从干净 Git 提交构建 API 与 migration 镜像；同一 SHA 标签已存在时直接复用，不允许覆盖
 - 生产发布先等待 PostgreSQL healthy，再执行 `prisma migrate deploy`；构建或迁移失败不会重建 API
 - 第一次部署时，如果 `APP_SECRET`、`ADMIN_API_KEY`、`FORUM_SSO_SECRET`、
   `POSTGRES_PASSWORD` 仍是占位值，脚本会随机生成并写回 `infra/compose/.env`
-- 启动前会检查是否存在来自其他工作区的同名旧容器；若检测到，会先清理旧的 `gamemulti-web`、`gamemulti-nginx` 与对应网络，避免 reviewer 在真实仓库复核时撞上历史残留
-- 通过 `docker compose up -d --remove-orphans` 默认拉起 `api`、`postgres` 和 `nginx`
+- 迁移成功后才会清理其他 Compose 项目的同名旧容器，避免失败发布提前中断现有入口
+- 通过 `docker compose up -d --remove-orphans --wait` 默认拉起 `api`、`postgres` 和 `nginx`；API healthy 后重建 nginx 并验证反向代理
 - `web` 挂在可选 `web` profile 下，默认不启动；需要旧前端时设置
   `ENABLE_WEB=1` 或 `COMPOSE_PROFILES=web`
 - `redis` 作为可选 `queue` profile，默认不启动
@@ -146,6 +146,38 @@ NGINX_CONF=../nginx/with-web.conf
 - `/bind/confirm?token=...` 由 Bridge API 服务端渲染，并通过 Discourse provider
   SSO 获取论坛登录态；旧的 `/account`、`/bindings`、`/admin` 页面暂时保留但不再作为新主线
 - 启动后输出 `docker compose ps`
+
+## 旧 `db push` 数据库迁移基线
+
+全新数据库会直接执行全部 migration。只有旧版曾用 `prisma db push` 建库、数据库非空且没有
+`_prisma_migrations` 表时，才需要一次性建立基线；不要对已存在迁移记录的数据库执行本节命令。
+
+先备份数据库，并确认线上 schema 已包含 `20260817114000_complete_head_schema` 的全部结构。
+随后在待发布提交中逐条记录这 6 个历史 migration，再由正常部署执行
+`20260817115000_add_binding_session_idempotency`：
+
+```bash
+export API_IMAGE_TAG=$(git rev-parse --short=12 HEAD)
+for migration in \
+  20260817100000_baseline \
+  20260817110000_add_plugin_request_nonce \
+  20260817110100_add_plugin_telemetry \
+  20260817110200_add_discourse_binding_identity \
+  20260817113000_add_binding_auth_context \
+  20260817114000_complete_head_schema
+do
+  docker compose --project-name gamemulti \
+    --env-file infra/compose/.env \
+    -f infra/compose/docker-compose.yml \
+    -f infra/compose/docker-compose.prod.yml \
+    run --rm migrate migrate resolve --applied "$migration" \
+    --schema=prisma/schema.prisma
+done
+```
+
+如果 `BindingSession.requestId`、`requestPayloadHash` 和唯一索引已经由 `db push` 创建，不能再次执行
+`20260817115000` 的 SQL；应先核对索引和列约束，再将该 migration 也标记为 applied。任何结构不一致都应
+先在数据库副本上生成并审查修复 SQL，不能盲目 baseline。
 
 ## 在线更新
 
@@ -259,6 +291,7 @@ cd /home/yinan/.openclaw/workspace/GameMulti
 
 bash infra/deploy/up.sh
 docker compose --env-file infra/compose/.env \
+  --project-name gamemulti \
   -f infra/compose/docker-compose.yml \
   -f infra/compose/docker-compose.prod.yml ps
 curl -I http://127.0.0.1:${HOST_HTTP_PORT:-8080}/
@@ -290,13 +323,16 @@ npm run smoke:bridge-api
 
 ```bash
 cd /home/yinan/.openclaw/workspace/GameMulti/infra/compose
-docker compose --env-file .env -f docker-compose.yml down
+docker compose --project-name gamemulti --env-file .env \
+  -f docker-compose.yml -f docker-compose.prod.yml down
 ```
 
 查看日志：
 
 ```bash
-docker compose --env-file .env -f docker-compose.yml logs --tail=200 api postgres nginx
+docker compose --project-name gamemulti --env-file .env \
+  -f docker-compose.yml -f docker-compose.prod.yml \
+  logs --tail=200 api postgres nginx
 ```
 
 排障重点：

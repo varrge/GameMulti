@@ -19,13 +19,14 @@ RUN npm --workspace @gamemulti/api run prisma:generate \
 FROM build AS migration
 ENV NODE_ENV=production
 WORKDIR /workspace/apps/api
+USER node
 ENTRYPOINT ["npx", "prisma"]
 CMD ["migrate", "deploy", "--schema=prisma/schema.prisma"]
 
 FROM base AS production-dependencies
 ENV NODE_ENV=production
 RUN --mount=type=cache,target=/root/.npm \
-  npm ci --omit=dev --workspace @gamemulti/api --include-workspace-root=false
+  npm ci --omit=dev --omit=optional --workspace @gamemulti/api --include-workspace-root=false
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production \

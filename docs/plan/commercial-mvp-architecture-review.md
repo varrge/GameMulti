@@ -253,7 +253,7 @@ P0 的规范性基线见 [`docs/plan/p0-unified-product-baseline.md`](./p0-unifi
 ## 12. 当前审查发现的风险
 
 1. **产品定义过窄**：若只验收“绑定成功”，用户仍会在论坛和游戏之间迷失；双向旅程和上下文必须成为 MVP 门槛。
-2. **生产配置名不副实**：`infra/compose/docker-compose.prod.yml` 仍运行时安装、`db push`、seed 和 build，不能作为商业生产发布方案。
+2. **生产镜像仍由部署主机构建**：API 运行镜像已经去除源码挂载与启动时 install/build/seed；多机发布前仍需接入 registry，以同一 digest 分发镜像。
 3. **拓扑文档漂移**：README 宣称默认启动 Web，但 `up.sh` 默认不启 Web；Nginx 默认配置也只代理 Bridge。
 4. **重复身份系统**：本地 Auth 与 Discourse SSO 并存，长期会产生账号归属和权限分叉。
 5. **后台交付物不一致**：静态 `apps/admin` 与实际 `apps/web/admin` 并存，前者不能请求后端，容易被误部署或误验收。
