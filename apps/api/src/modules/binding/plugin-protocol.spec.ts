@@ -79,6 +79,7 @@ function pluginRequest(headers: Record<string, string>) {
   return {
     method: 'GET',
     url: '/api/plugin/bindings/session-1',
+    body: {},
     headers,
   };
 }

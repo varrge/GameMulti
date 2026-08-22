@@ -188,9 +188,12 @@ export class PluginAuthGuard implements CanActivate {
     return value.split('?')[0] || value;
   }
 
-  private requestBody(request: { body?: unknown; rawBody?: Buffer }) {
+  private requestBody(request: { method?: string; body?: unknown; rawBody?: Buffer }) {
     if (Buffer.isBuffer(request.rawBody)) {
       return request.rawBody;
+    }
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      return '';
     }
     if (request.body === undefined || request.body === null) {
       return '';
