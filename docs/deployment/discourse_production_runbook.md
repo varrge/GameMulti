@@ -233,6 +233,26 @@ proxy_set_header X-Forwarded-For $remote_addr;
 proxy_set_header X-Real-IP $remote_addr;
 ```
 
+`game.game-mp.cn` 是 DDNS 域名时，不要直接使用静态
+`proxy_pass http://game.game-mp.cn:端口`。OpenResty 只会在加载配置时解析一次，公网 IP
+变化后会持续连接旧地址，直到 reload。两个代理的 `location` 分别使用动态解析：
+
+```nginx
+# sso.game-mp.cn
+resolver 223.5.5.5 1.1.1.1 valid=60s ipv6=off;
+resolver_timeout 5s;
+set $gamemulti_bridge_upstream game.game-mp.cn;
+proxy_pass http://$gamemulti_bridge_upstream:1051;
+
+# bbs.game-mp.cn
+resolver 223.5.5.5 1.1.1.1 valid=60s ipv6=off;
+resolver_timeout 5s;
+set $gamemulti_forum_upstream game.game-mp.cn;
+proxy_pass http://$gamemulti_forum_upstream:1050;
+```
+
+修改后先执行 OpenResty 配置测试，再平滑 reload，并从 VPS 本机验证两个 HTTPS 入口。
+
 Docker 发布端口会绕过一部分普通 `ufw` 规则。安装仓库提供的
 `gamemulti-origin-firewall.service.example`，通过 `DOCKER-USER` 只允许 1Panel VPS：
 

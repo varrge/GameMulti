@@ -161,6 +161,10 @@ bbs.game-mp.cn -> http://game.game-mp.cn:1050
 sso.game-mp.cn -> http://game.game-mp.cn:1051
 ```
 
+`game.game-mp.cn` 使用 DDNS，两个代理必须按
+[`discourse_production_runbook.md`](./discourse_production_runbook.md#vps1panel-前置方案)
+配置带短 TTL 的动态 resolver；静态 `proxy_pass` 会一直使用 OpenResty 启动时解析到的旧 IP。
+
 两个代理都必须传递 `Host`、`X-Forwarded-Proto`、`X-Forwarded-Host`、
 `X-Forwarded-For` 和 `X-Real-IP`。边缘层用当前连接的 `$remote_addr` 重建客户端 IP，
 不要信任浏览器自带的转发头。证书只放在 1Panel，家庭服务器不再运行 Caddy。
