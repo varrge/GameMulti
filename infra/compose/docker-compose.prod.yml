@@ -1,8 +1,34 @@
 services:
   api:
-    command: >-
-      sh -lc "npm install --include=dev && npx prisma generate && npm run prisma:deploy && npm run build && exec npm run start:prod"
+    image: ${APP_NAME:-gamemulti}-api:${API_IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+      args:
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
+    working_dir: /workspace/apps/api
+    command: ["node", "dist/main.js"]
+    volumes: !reset []
     restart: unless-stopped
+
+  migrate:
+    image: ${APP_NAME:-gamemulti}-api-migration:${API_IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: migration
+      args:
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
+    profiles: ["migration"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app_net
 
   nginx:
     restart: unless-stopped

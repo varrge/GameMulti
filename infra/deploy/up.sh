@@ -137,6 +137,16 @@ for compose_file in "${COMPOSE_FILES[@]}"; do
   COMPOSE_ARGS+=(-f "$compose_file")
 done
 
+if [[ "${NODE_ENV:-development}" == "production" ]]; then
+  if [[ -z "${API_IMAGE_TAG:-}" ]]; then
+    API_IMAGE_TAG=$(git -C "$REPO_ROOT" rev-parse --short=12 HEAD 2>/dev/null || date -u +%Y%m%d%H%M%S)
+    if [[ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=no 2>/dev/null)" ]]; then
+      API_IMAGE_TAG="${API_IMAGE_TAG}-dirty-$(date -u +%Y%m%d%H%M%S)"
+    fi
+  fi
+  export API_IMAGE_TAG
+fi
+
 PUBLIC_ORIGIN=${PUBLIC_ORIGIN:-${APP_URL:-http://localhost:${HOST_HTTP_PORT:-8080}}}
 APP_URL=${APP_URL:-$PUBLIC_ORIGIN}
 API_URL=${API_URL:-$PUBLIC_ORIGIN/api}
@@ -223,6 +233,14 @@ echo "==> Compose 文件: ${COMPOSE_FILES[*]}"
 echo "==> Compose 项目名: $COMPOSE_PROJECT_NAME"
 echo "==> HTTP 入口端口: ${HOST_HTTP_PORT:-8080}"
 echo "==> Nginx 配置: ${NGINX_CONF:-../nginx/default.conf}"
+if [[ "${NODE_ENV:-development}" == "production" ]]; then
+  echo "==> 构建 API 镜像: ${APP_NAME:-gamemulti}-api:${API_IMAGE_TAG}"
+  docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" build api migrate
+  echo "==> 启动并等待 PostgreSQL"
+  docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" up -d --wait postgres
+  echo "==> 执行 Prisma 生产迁移"
+  docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" run --rm migrate
+fi
 echo "==> 启动 compose 服务"
 cd "$COMPOSE_DIR"
 docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_ARGS[@]}" up -d --remove-orphans

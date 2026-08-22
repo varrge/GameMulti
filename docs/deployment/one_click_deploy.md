@@ -132,6 +132,8 @@ NGINX_CONF=../nginx/with-web.conf
 
 - 使用 `infra/compose/docker-compose.yml`
 - 默认以 `APP_NAME` 作为 compose project 名（默认 `gamemulti`）
+- `NODE_ENV=production` 时先构建 Git SHA 标记的 API 与 migration 镜像，运行容器不挂载源码
+- 生产发布先等待 PostgreSQL healthy，再执行 `prisma migrate deploy`；构建或迁移失败不会重建 API
 - 第一次部署时，如果 `APP_SECRET`、`ADMIN_API_KEY`、`FORUM_SSO_SECRET`、
   `POSTGRES_PASSWORD` 仍是占位值，脚本会随机生成并写回 `infra/compose/.env`
 - 启动前会检查是否存在来自其他工作区的同名旧容器；若检测到，会先清理旧的 `gamemulti-web`、`gamemulti-nginx` 与对应网络，避免 reviewer 在真实仓库复核时撞上历史残留
@@ -244,6 +246,7 @@ SMTP、域名、服务器路径这类外部信息不会自动生成，仍需手�
 - 缺少 `infra/compose/.env`
 - 启用 `web` profile 时，`WEB_SOURCE_DIR` 目录不存在，或目录下缺少 `package.json`
 - 缺少 `infra/nginx/default.conf`
+- 生产 API 镜像构建失败，或 `prisma migrate deploy` 失败
 - 在线更新时，已跟踪文件存在服务器本地改动
 - 在线更新时，当前分支无法 fast-forward 到远端目标分支
 
@@ -252,10 +255,12 @@ SMTP、域名、服务器路径这类外部信息不会自动生成，仍需手�
 建议按下面顺序复核：
 
 ```bash
-cd /home/yinan/.openclaw/workspace/GameMulti/infra/compose
+cd /home/yinan/.openclaw/workspace/GameMulti
 
-docker compose --env-file .env -f docker-compose.yml up -d --remove-orphans
-docker compose --env-file .env -f docker-compose.yml ps
+bash infra/deploy/up.sh
+docker compose --env-file infra/compose/.env \
+  -f infra/compose/docker-compose.yml \
+  -f infra/compose/docker-compose.prod.yml ps
 curl -I http://127.0.0.1:${HOST_HTTP_PORT:-8080}/
 curl -I http://127.0.0.1:${HOST_HTTP_PORT:-8080}/bind/confirm?token=demo
 npm run smoke:bridge-api
@@ -263,7 +268,7 @@ npm run smoke:bridge-api
 
 ## 已知限制
 
-- 当前生产 Compose 会在容器启动时安装依赖并构建 API；固定镜像流水线仍待补齐
+- 生产镜像当前由部署主机从锁文件构建；如需多机发布，再接入 registry/CI 分发同一镜像 digest
 - 如显式启用旧 `web` profile，Next 也会以开发模式启动
 - 如果宿主机已有其他服务占用 `HOST_HTTP_PORT`，外部 HTTP 校验可能被宿主机级代理或端口转发干扰
 - 如需队列/缓存，需手动加 `--profile queue`

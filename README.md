@@ -125,8 +125,8 @@ npm run smoke:web-api
 
 ### 已知限制
 
-- 当前 `web` / `api` 服务以开发模式启动，首次 `npm install` 较慢
-- 当前默认不覆盖生产构建、HTTPS 证书、systemd 托管和论坛并入同一入口脚本
+- 基础 Compose 的 `web` / `api` 仍是本地开发模式；`NODE_ENV=production` 时 API 改用预构建镜像
+- HTTPS 证书、systemd 托管和论坛仍不并入同一入口脚本
 - 如果宿主机已有其他服务占用 `HOST_HTTP_PORT`，HTTP 复核可能受宿主机级代理或端口转发影响
 
 ### 回滚与排障

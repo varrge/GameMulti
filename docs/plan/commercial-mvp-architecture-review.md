@@ -207,9 +207,9 @@ app.example.com       -> GameMulti Bridge（统一产品壳、API、绑定页）
 
 ### 10.1 Compose 与发布
 
-`infra/compose/docker-compose.yml` 运行时执行 `npm install`、Prisma 生成、`db push`、seed 和开发服务器；`infra/compose/docker-compose.prod.yml` 仍在启动时安装依赖、`db push`、seed、build。这会造成启动不可重复、生产编译漂移和 schema 误改。
+基础 `infra/compose/docker-compose.yml` 保留本地开发模式。生产覆盖已改为多阶段 API 镜像：部署先构建 Git SHA 标记的 runtime/migration 镜像，执行 `prisma migrate deploy` 后再切换 API；运行容器不挂载源码，也不执行安装、生成、seed 或编译。
 
-商业 MVP 应改为：CI/镜像阶段安装依赖、生成 Prisma client、编译 API/Web；运行镜像只带生产依赖和产物；发布执行 `prisma migrate deploy`，禁止生产 `db push` 和自动 seed；Web 使用构建产物；Bridge、PostgreSQL 和单一反代完成健康检查、备份和恢复演练。
+当前单机发布由部署主机构建固定镜像。扩展到多机前，再接入 CI/registry，以同一 image digest 分发；Web 如恢复生产使用，也必须使用构建产物。Bridge、PostgreSQL 和单一反代继续完成健康检查、备份和恢复演练。
 
 ### 10.2 Nginx、数据库与 Redis
 
