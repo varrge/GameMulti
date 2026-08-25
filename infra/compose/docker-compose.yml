@@ -53,7 +53,7 @@ services:
       FORUM_ORIGIN: ${FORUM_ORIGIN:-https://bbs.example.com}
       FORUM_ENTRY_PATH: ${FORUM_ENTRY_PATH:-/}
       FORUM_SSO_SECRET: ${FORUM_SSO_SECRET:-local-dev-forum-sso-secret}
-      DISCOURSE_PROVIDER_SECRET: ${DISCOURSE_PROVIDER_SECRET:-local-dev-forum-sso-secret}
+      DISCOURSE_PROVIDER_SECRET: ${DISCOURSE_PROVIDER_SECRET:-}
       DEPLOY_AGENT_URL: ${DEPLOY_AGENT_URL:-}
       DEPLOY_AGENT_TOKEN: ${DEPLOY_AGENT_TOKEN:-}
     volumes:
