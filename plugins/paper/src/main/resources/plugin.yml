@@ -1,0 +1,18 @@
+name: GameMulti
+version: '${version}'
+main: cn.gamemp.gamemulti.GameMultiPlugin
+api-version: '1.21'
+authors: [GameMulti]
+description: GameMulti Minecraft account binding bridge
+commands:
+  gm:
+    description: GameMulti binding commands
+    usage: /gm <bind|status|admin status>
+    aliases: [gamemulti]
+permissions:
+  gamemulti.bind:
+    description: Create and inspect your GameMulti binding
+    default: true
+  gamemulti.admin:
+    description: Inspect GameMulti plugin status
+    default: op

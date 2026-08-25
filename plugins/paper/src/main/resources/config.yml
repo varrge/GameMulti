@@ -1,0 +1,22 @@
+api:
+  base-url: "https://sso.game-mp.cn"
+  protocol-version: "2026-06-mvp"
+  connect-timeout-ms: 3000
+  request-timeout-ms: 8000
+
+server:
+  name: "Change Me"
+  code: "change-me"
+  public-host: "mc.example.com"
+  public-port: 25565
+  region: "cn-east"
+
+binding:
+  poll-interval-seconds: 3
+  max-active-sessions: 200
+
+telemetry:
+  heartbeat-interval-seconds: 60
+
+development:
+  allow-insecure-http: false
