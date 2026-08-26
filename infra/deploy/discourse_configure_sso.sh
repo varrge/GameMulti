@@ -182,4 +182,14 @@ else
   warn "forum integration script not found: $LINKS_SCRIPT"
 fi
 
+ZH_OVERRIDES_SCRIPT="$SCRIPT_DIR/discourse_apply_zh_overrides.rb"
+if [[ -f "$ZH_OVERRIDES_SCRIPT" ]]; then
+  docker exec -i \
+    -u discourse \
+    "$DISCOURSE_CONTAINER" \
+    bash -lc 'cd /var/www/discourse && bundle exec rails runner -' < "$ZH_OVERRIDES_SCRIPT"
+else
+  warn "Simplified Chinese overrides script not found: $ZH_OVERRIDES_SCRIPT"
+fi
+
 echo "Discourse provider production settings applied."

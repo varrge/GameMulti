@@ -10,7 +10,7 @@ export class PluginClientGeneratorController {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Plugin Client Generator - GameMulti</title>
+  <title>GameMulti 插件客户端管理</title>
   <style>
     :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { margin: 0; min-height: 100vh; background: #080808; color: #fff; display: grid; place-items: center; padding: 24px; }
@@ -31,13 +31,13 @@ export class PluginClientGeneratorController {
 </head>
 <body>
   <main>
-    <h1>Plugin Client</h1>
+    <h1>插件客户端管理</h1>
     <label>
-      Admin Key
+      管理员密钥
       <input id="adminKey" type="password" autocomplete="off" />
     </label>
     <label>
-      Install Token Hours
+      安装令牌有效期（小时）
       <input id="installTokenHours" type="number" min="1" max="720" value="24" />
     </label>
     <div class="actions">
@@ -45,12 +45,12 @@ export class PluginClientGeneratorController {
       <button class="secondary" id="copyInstallToken" type="button" disabled>复制安装配置</button>
     </div>
     <label>
-      Install Config
+      安装配置
       <textarea id="installTokenResult" readonly placeholder="给服主第一次安装插件用，只显示一次 installToken"></textarea>
     </label>
     <div class="row">
       <label>
-        Server
+        服务器
         <select id="serverCode">
           <option value="">先加载服务器</option>
         </select>
@@ -58,15 +58,15 @@ export class PluginClientGeneratorController {
       <button class="secondary" id="loadServers" type="button">加载</button>
     </div>
     <label>
-      Plugin Version
+      插件版本
       <input id="pluginVersion" value="temporary" />
     </label>
     <label>
-      Protocol Version
+      协议版本
       <input id="protocolVersion" value="2026-06-mvp" />
     </label>
     <label>
-      Expires In Hours
+      凭证有效期（小时，0 表示永不过期）
       <input id="expiresInHours" type="number" min="0" max="720" value="24" />
     </label>
     <div class="actions">
@@ -76,17 +76,17 @@ export class PluginClientGeneratorController {
     <p id="message" class="message"></p>
     <div id="servers"></div>
     <label>
-      Config
+      客户端配置
       <textarea id="result" readonly placeholder="生成后这里只显示一次 clientSecret"></textarea>
     </label>
-    <h2>Deploy Update</h2>
+    <h2>部署更新</h2>
     <div class="actions">
       <button class="secondary" id="loadDeployStatus" type="button">更新状态</button>
       <button id="triggerDeployUpdate" type="button">一键更新</button>
     </div>
     <label>
-      Deploy Status
-      <textarea id="deployStatus" readonly placeholder="更新代理未配置时，这里会显示 disabled"></textarea>
+      部署状态
+      <textarea id="deployStatus" readonly placeholder="未配置更新代理时，这里会显示“未启用”"></textarea>
     </label>
   </main>
   <script>
@@ -105,6 +105,38 @@ export class PluginClientGeneratorController {
     const deployStatus = document.querySelector('#deployStatus');
     let deployPollTimer;
 
+    const statusLabels = {
+      active: '正常',
+      pending: '待审核',
+      disabled: '已禁用',
+      blocked: '已拉黑',
+      healthy: '健康',
+      unhealthy: '异常',
+      running: '运行中',
+      success: '成功',
+      failed: '失败',
+      idle: '空闲',
+    };
+
+    function statusLabel(value) {
+      return statusLabels[value] || '未知';
+    }
+
+    function deployMessage(value) {
+      const labels = {
+        'DEPLOY_AGENT_URL and DEPLOY_AGENT_TOKEN are not configured': '未配置部署更新代理。',
+        'Update already running': '部署更新正在进行中。',
+        'Update started': '部署更新已开始。',
+      };
+      return labels[value] || (/[\u4e00-\u9fff]/.test(value || '') ? value : '部署状态已更新。');
+    }
+
+    function errorMessage(error) {
+      return error instanceof Error && /[\u4e00-\u9fff]/.test(error.message)
+        ? error.message
+        : '操作失败，请检查网络连接和管理员密钥。';
+    }
+
     function setMessage(text, error) {
       message.textContent = text || '';
       message.className = error ? 'message error' : 'message';
@@ -112,7 +144,7 @@ export class PluginClientGeneratorController {
 
     async function adminRequest(path, options = {}) {
       const key = adminKey.value.trim();
-      if (!key) throw new Error('Admin Key required');
+      if (!key) throw new Error('请输入管理员密钥。');
 
       const response = await fetch('/api' + path, {
         ...options,
@@ -125,14 +157,14 @@ export class PluginClientGeneratorController {
       const text = await response.text();
       const data = text ? JSON.parse(text) : null;
       if (!response.ok) {
-        throw new Error(data?.message || 'Request failed');
+        throw new Error('请求失败（HTTP ' + response.status + '）。');
       }
       return data;
     }
 
     document.querySelector('#loadServers').addEventListener('click', async () => {
       try {
-        setMessage('Loading servers...');
+        setMessage('正在加载服务器……');
         const servers = await adminRequest('/admin/game-servers');
         renderServers(servers);
         serverCode.innerHTML = '';
@@ -142,9 +174,9 @@ export class PluginClientGeneratorController {
           option.textContent = server.serverName + ' / ' + server.serverCode;
           serverCode.appendChild(option);
         }
-        setMessage(servers.length ? 'Servers loaded.' : 'No servers found.');
+        setMessage(servers.length ? '服务器已加载。' : '没有找到服务器。');
       } catch (error) {
-        setMessage(error.message, true);
+        setMessage(errorMessage(error), true);
       }
     });
 
@@ -152,7 +184,7 @@ export class PluginClientGeneratorController {
       servers.innerHTML = items.map((server) => [
         '<div style="border-top:1px solid rgba(255,255,255,.1);padding:12px 0;display:grid;gap:8px">',
         '<strong>' + escapeHtml(server.serverName) + ' / ' + escapeHtml(server.serverCode) + '</strong>',
-        '<span class="message">status=' + escapeHtml(server.status) + ' host=' + escapeHtml(server.endpointHost || '-') + ':' + escapeHtml(String(server.endpointPort || '-')) + ' online=' + escapeHtml(String(server.latestHeartbeat?.onlineCount ?? '-')) + '</span>',
+        '<span class="message">状态：' + escapeHtml(statusLabel(server.status)) + '　地址：' + escapeHtml(server.endpointHost || '-') + ':' + escapeHtml(String(server.endpointPort || '-')) + '　在线人数：' + escapeHtml(String(server.latestHeartbeat?.onlineCount ?? '-')) + '</span>',
         '<div class="actions">',
         '<button class="secondary" data-status="active" data-id="' + escapeHtml(server.id) + '">通过</button>',
         '<button class="secondary" data-status="disabled" data-id="' + escapeHtml(server.id) + '">禁用</button>',
@@ -180,16 +212,16 @@ export class PluginClientGeneratorController {
           method: 'POST',
           body: JSON.stringify({ status: button.dataset.status }),
         });
-        setMessage('Server status updated.');
+        setMessage('服务器状态已更新。');
         document.querySelector('#loadServers').click();
       } catch (error) {
-        setMessage(error.message, true);
+        setMessage(errorMessage(error), true);
       }
     });
 
     document.querySelector('#createInstallToken').addEventListener('click', async () => {
       try {
-        setMessage('Creating install token...');
+        setMessage('正在生成安装令牌……');
         const data = await adminRequest('/admin/plugin-install-tokens', {
           method: 'POST',
           body: JSON.stringify({
@@ -206,20 +238,20 @@ export class PluginClientGeneratorController {
           'expiresAt: "' + data.expiresAt + '"',
         ].join('\\n');
         copyInstallToken.disabled = false;
-        setMessage('Install token created. It is shown once.');
+        setMessage('安装令牌已生成，仅显示这一次，请立即妥善保存。');
       } catch (error) {
-        setMessage(error.message, true);
+        setMessage(errorMessage(error), true);
       }
     });
 
     copyInstallToken.addEventListener('click', async () => {
       await navigator.clipboard.writeText(installTokenResult.value);
-      setMessage('Copied.');
+      setMessage('已复制。');
     });
 
     document.querySelector('#createClient').addEventListener('click', async () => {
       try {
-        setMessage('Creating plugin client...');
+        setMessage('正在生成插件客户端凭证……');
         const data = await adminRequest('/admin/plugin-clients', {
           method: 'POST',
           body: JSON.stringify({
@@ -238,30 +270,40 @@ export class PluginClientGeneratorController {
           'expiresAt: "' + (data.pluginClient.expiresAt || 'never') + '"',
         ].join('\\n');
         copyConfig.disabled = false;
-        setMessage('Created. clientSecret will not be returned again after this response.');
+        setMessage('凭证已生成，客户端密钥仅显示这一次，请立即妥善保存。');
       } catch (error) {
-        setMessage(error.message, true);
+        setMessage(errorMessage(error), true);
       }
     });
 
     copyConfig.addEventListener('click', async () => {
       await navigator.clipboard.writeText(result.value);
-      setMessage('Copied.');
+      setMessage('已复制。');
     });
 
     function renderDeployStatus(data) {
-      deployStatus.value = JSON.stringify(data, null, 2);
+      deployStatus.value = [
+        '是否启用：' + (data.enabled ? '是' : '否'),
+        '是否运行：' + (data.running ? '是' : '否'),
+        '执行结果：' + (data.running ? '运行中' : data.exitCode === 0 ? '成功' : data.exitCode == null ? '尚未执行' : '失败'),
+        data.message ? '说明：' + deployMessage(data.message) : '',
+        data.startedAt ? '开始时间：' + data.startedAt : '',
+        data.finishedAt ? '完成时间：' + data.finishedAt : '',
+        data.exitCode != null ? '退出码：' + data.exitCode : '',
+        data.lastError ? '最近错误：部署更新失败，请查看服务器日志。' : '',
+        data.logs ? '日志：\n' + data.logs : '',
+      ].filter(Boolean).join('\n');
     }
 
     async function loadDeployStatus() {
       try {
-        setMessage('Loading deploy status...');
+        setMessage('正在读取部署状态……');
         const data = await adminRequest('/admin/deploy/status');
         renderDeployStatus(data);
-        setMessage('Deploy status loaded.');
+        setMessage('部署状态已更新。');
         return data;
       } catch (error) {
-        setMessage(error.message, true);
+        setMessage(errorMessage(error), true);
         return null;
       }
     }
@@ -281,11 +323,11 @@ export class PluginClientGeneratorController {
     document.querySelector('#triggerDeployUpdate').addEventListener('click', async () => {
       if (!window.confirm('确认从远端拉取代码并重启 GameMulti？')) return;
       try {
-        setMessage('Deploy update started...');
+        setMessage('部署更新已开始……');
         renderDeployStatus(await adminRequest('/admin/deploy/update', { method: 'POST' }));
         pollDeployStatus();
       } catch (error) {
-        setMessage(error.message, true);
+        setMessage(errorMessage(error), true);
       }
     });
   </script>

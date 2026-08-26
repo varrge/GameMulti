@@ -153,8 +153,10 @@ bash infra/deploy/discourse_configure_sso.sh infra/deploy/discourse.env
 - 创建“游戏绑定”分类和置顶入口帖，链接到 Bridge 的 `/bind/account` 和
   `/api/admin/plugin-client-generator`。
 
-Discourse 自带简体中文翻译，不需要额外安装汉化插件。脚本只负责系统 UI、邮件模板
-等内置文案的默认语言；分类名、站点介绍、条款、公告帖和运营内容需要手工编辑成中文。
+Discourse 自带简体中文翻译，不需要额外安装汉化插件。配置脚本还会应用
+`discourse_apply_zh_overrides.rb`，补齐当前版本缺失并会回退英文的后台文案和站点设置说明，
+同时汉化公共导航名称。覆盖项保存在 Discourse 数据库中，容器重启后仍然有效；
+分类名、站点介绍、条款、公告帖和运营内容仍需手工编辑成中文。
 
 也可以进入 Discourse 管理后台手工配置：
 
